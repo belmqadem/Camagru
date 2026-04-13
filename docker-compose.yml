@@ -1,0 +1,41 @@
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./server/public:/var/www/public
+    depends_on:
+      - app
+    restart: on-failure
+
+  app:
+    build: ./server
+    env_file: .env
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    depends_on:
+      - db
+      - mailhog
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  mailhog:
+    image: mailhog/mailhog
+    platform: linux/amd64
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI to read emails
+
+volumes:
+  pgdata:
