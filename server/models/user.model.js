@@ -1,4 +1,4 @@
-const pool = require("../core/db");
+const { pool } = require("../core/db");
 
 const userModel = {
   create: async ({
@@ -74,6 +74,7 @@ const userModel = {
     );
   },
 
+  // TODO: I should reset the verify_token and verify_expires fields when updating the email address, and require re-verification.
   updateProfile: async (id, { username, email }) => {
     await pool.query(
       "UPDATE users SET username = $1, email = $2 WHERE id = $3",

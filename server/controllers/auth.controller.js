@@ -7,10 +7,18 @@ const { generate } = require("../core/csrf");
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
 const VERIFY_TOKEN_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
+const FORGOT_PASSWORD_MIN_RESPONSE_MS = 300;
 const normalizeEmail = (email) =>
   String(email || "")
     .trim()
     .toLowerCase();
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const escapeHtml = (value) =>
+  String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 
 exports.getRegister = (req, res) => {
   res.send(registerHTML(generate(req)));
@@ -55,7 +63,7 @@ exports.postRegister = async (req, res) => {
     normalizedEmail,
     "Confirm your Camagru account",
     `
-    <h2>Welcome to Camagru, ${normalizedUsername}!</h2>
+    <h2>Welcome to Camagru, ${escapeHtml(normalizedUsername)}!</h2>
     <p>Click the link below to confirm your account:</p>
     <a href="${link}">Confirm my account</a>
   `,
@@ -120,6 +128,7 @@ exports.getForgot = (req, res) => {
 };
 
 exports.postForgot = async (req, res) => {
+  const startedAt = Date.now();
   const { email } = req.body;
   const normalizedEmail = normalizeEmail(email);
 
@@ -128,24 +137,29 @@ exports.postForgot = async (req, res) => {
 
   const user = await userModel.findByEmail(normalizedEmail);
 
-  if (!user)
-    return res.send("If that email exists, a reset link has been sent.");
-
   const token = crypto.randomBytes(32).toString("hex");
   const expires = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
-
-  await userModel.setResetToken(user.id, token, expires);
-
   const link = `${process.env.APP_URL}/reset-password?token=${token}`;
-  await sendMail(
-    normalizedEmail,
-    "Reset your Camagru password",
-    `
+
+  if (user) {
+    await userModel.setResetToken(user.id, token, expires);
+    void sendMail(
+      normalizedEmail,
+      "Reset your Camagru password",
+      `
     <h2>Password Reset</h2>
     <p>Click the link below (valid for 1 hour):</p>
     <a href="${link}">Reset my password</a>
   `,
-  );
+    ).catch((error) => {
+      console.error("Failed to send reset password email:", error);
+    });
+  }
+
+  const elapsedMs = Date.now() - startedAt;
+  if (elapsedMs < FORGOT_PASSWORD_MIN_RESPONSE_MS) {
+    await wait(FORGOT_PASSWORD_MIN_RESPONSE_MS - elapsedMs);
+  }
 
   res.send("If that email exists, a reset link has been sent.");
 };

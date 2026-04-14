@@ -11,9 +11,26 @@ const generate = (req) => {
 // Use this as middleware on every POST route
 const verify = (req, res, next) => {
   const token = req.body._csrf || req.headers["x-csrf-token"];
-  if (!token || token !== req.session.csrfToken) {
+  if (!req.session || !req.session.csrfToken || !token) {
     return res.status(403).send("Invalid CSRF token");
   }
+
+  try {
+    const tokenBuffer = Buffer.from(String(token));
+    const sessionTokenBuffer = Buffer.from(String(req.session.csrfToken));
+
+    if (tokenBuffer.length !== sessionTokenBuffer.length) {
+      return res.status(403).send("Invalid CSRF token");
+    }
+
+    const isValid = crypto.timingSafeEqual(tokenBuffer, sessionTokenBuffer);
+    if (!isValid) {
+      return res.status(403).send("Invalid CSRF token");
+    }
+  } catch (error) {
+    return res.status(403).send("Invalid CSRF token");
+  }
+
   next();
 };
 

@@ -34,7 +34,7 @@ const express = require("express");
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
 const path = require("path");
-const pool = require("./core/db");
+const { pool, initDb } = require("./core/db");
 const requireAuth = require("./middlewares/auth.middleware");
 
 const app = express();
@@ -89,4 +89,13 @@ app.use((err, req, res, next) => {
   return res.status(status).send(message || "Request failed");
 });
 
-app.listen(3000, () => console.log("Camagru running on port 3000"));
+const startServer = async () => {
+  try {
+    await initDb();
+    app.listen(3000, () => console.log("Camagru running on port 3000"));
+  } catch (error) {
+    onFatalError("Database initialization failed", error);
+  }
+};
+
+startServer();

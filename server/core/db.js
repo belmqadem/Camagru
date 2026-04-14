@@ -46,9 +46,23 @@ const connectWithRetry = async (retries = 5, delay = 2000) => {
   throw finalError;
 };
 
-connectWithRetry().catch((err) => {
-  console.error("Database initialization failed:", err);
-  process.exit(1);
-});
+let initPromise = null;
+const initDb = (options = {}) => {
+  if (initPromise) {
+    return initPromise;
+  }
 
-module.exports = pool;
+  const retries = Number.isInteger(options.retries) ? options.retries : 5;
+  const delay = Number.isInteger(options.delay) ? options.delay : 2000;
+
+  initPromise = connectWithRetry(retries, delay)
+    .then(() => pool)
+    .catch((error) => {
+      initPromise = null;
+      throw error;
+    });
+
+  return initPromise;
+};
+
+module.exports = { pool, initDb };
