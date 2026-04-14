@@ -1,21 +1,25 @@
 const router = require("express").Router();
+const auth = require("../controllers/auth.controller");
+const csrf = require("../core/csrf");
+const withErrorHandling = require("../utils/withErrorHandling");
 
-router.get("/register", (req, res) => res.send("Register page — TODO"));
-router.post("/register", (req, res) => res.send("Handle register — TODO"));
+router.get("/register", withErrorHandling(auth.getRegister));
+router.post("/register", csrf.verify, withErrorHandling(auth.postRegister));
 
-router.get("/login", (req, res) => res.send("Login page — TODO"));
-router.post("/login", (req, res) => res.send("Handle login — TODO"));
+router.get("/login", withErrorHandling(auth.getLogin));
+router.post("/login", csrf.verify, withErrorHandling(auth.postLogin));
 
-router.get("/logout", (req, res) => res.send("Logout — TODO"));
+router.post("/logout", csrf.verify, withErrorHandling(auth.logout));
+router.get("/verify", withErrorHandling(auth.getVerify));
 
-router.get("/verify", (req, res) => res.send("Email verify — TODO"));
-
-router.get("/forgot-password", (req, res) =>
-  res.send("Forgot password — TODO"),
+router.get("/forgot-password", withErrorHandling(auth.getForgot));
+router.post(
+  "/forgot-password",
+  csrf.verify,
+  withErrorHandling(auth.postForgot),
 );
-router.post("/forgot-password", (req, res) => res.send("Handle forgot — TODO"));
 
-router.get("/reset-password", (req, res) => res.send("Reset password — TODO"));
-router.post("/reset-password", (req, res) => res.send("Handle reset — TODO"));
+router.get("/reset-password", withErrorHandling(auth.getReset));
+router.post("/reset-password", csrf.verify, withErrorHandling(auth.postReset));
 
 module.exports = router;

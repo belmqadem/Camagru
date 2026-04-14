@@ -12,6 +12,7 @@ CREATE TABLE users (
   password         TEXT NOT NULL,
   verified         BOOLEAN DEFAULT FALSE,
   verify_token     TEXT,
+  verify_expires   TIMESTAMP,
   reset_token      TEXT,
   reset_expires    TIMESTAMP,
   notify_comments  BOOLEAN DEFAULT TRUE,

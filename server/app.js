@@ -1,13 +1,44 @@
 require("dotenv").config();
+
+const onFatalError = (label, error) => {
+  const err = error instanceof Error ? error : new Error(String(error));
+  console.error(`[${label}]`, err);
+  process.exit(1);
+};
+
+process.on("unhandledRejection", (reason) => {
+  onFatalError("Unhandled Promise Rejection", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  onFatalError("Uncaught Exception", error);
+});
+
+const appUrl = String(process.env.APP_URL || "").trim();
+if (!appUrl) {
+  onFatalError(
+    "Configuration Error",
+    new Error("APP_URL environment variable is required"),
+  );
+}
+
+const sessionSecret = String(process.env.SESSION_SECRET || "").trim();
+if (!sessionSecret) {
+  onFatalError(
+    "Configuration Error",
+    new Error("SESSION_SECRET environment variable is required"),
+  );
+}
+
 const express = require("express");
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
 const path = require("path");
 const pool = require("./core/db");
+const requireAuth = require("./middlewares/auth.middleware");
 
 const app = express();
 
-// Body parsers
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
@@ -18,7 +49,7 @@ app.use("/public", express.static(path.join(__dirname, "public")));
 app.use(
   session({
     store: new pgSession({ pool, tableName: "sessions" }),
-    secret: process.env.SESSION_SECRET,
+    secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -36,9 +67,9 @@ app.use((req, res, next) => {
 
 // Routes
 app.use("/", require("./routes/auth.routes"));
-app.use("/gallery", require("./routes/gallery.routes"));
-app.use("/edit", require("./routes/edit.routes"));
-app.use("/user", require("./routes/user.routes"));
+app.use("/gallery", requireAuth, require("./routes/gallery.routes"));
+app.use("/edit", requireAuth, require("./routes/edit.routes"));
+app.use("/user", requireAuth, require("./routes/user.routes"));
 
 // 404 handler
 app.use((req, res) => {
@@ -47,8 +78,15 @@ app.use((req, res) => {
 
 // Global error handler
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).send("Something went wrong");
+  console.error(`[${req.method} ${req.originalUrl}]`, err);
+
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  const status = Number.isInteger(err.status) ? err.status : 500;
+  const message = status >= 500 ? "Something went wrong" : err.message;
+  return res.status(status).send(message || "Request failed");
 });
 
 app.listen(3000, () => console.log("Camagru running on port 3000"));
