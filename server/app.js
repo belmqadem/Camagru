@@ -1,8 +1,9 @@
 require("dotenv").config();
+const logger = require("./core/logger");
 
 const onFatalError = (label, error) => {
   const err = error instanceof Error ? error : new Error(String(error));
-  console.error(`[${label}]`, err);
+  logger.error(`[${label}]`, err);
   process.exit(1);
 };
 
@@ -42,6 +43,43 @@ const app = express();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
+// Logging middleware
+app.use((req, res, next) => {
+  const startedAt = process.hrtime.bigint();
+  res.locals.requestErrorMessage = null;
+
+  res.on("finish", () => {
+    const durationMs = Number((process.hrtime.bigint() - startedAt) / 1000000n);
+    const result =
+      res.statusCode >= 500
+        ? "server_error"
+        : res.statusCode >= 400
+          ? "client_error"
+          : "success";
+    const logMeta = {
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      result,
+      durationMs,
+    };
+
+    if (res.locals.requestErrorMessage) {
+      logMeta.error = res.locals.requestErrorMessage;
+    }
+
+    if (res.statusCode >= 500) {
+      logger.error("Request completed", logMeta);
+    } else if (res.statusCode >= 400) {
+      logger.warn("Request completed", logMeta);
+    } else {
+      logger.info("Request completed", logMeta);
+    }
+  });
+
+  next();
+});
+
 // Static files
 app.use("/public", express.static(path.join(__dirname, "public")));
 
@@ -78,7 +116,9 @@ app.use((req, res) => {
 
 // Global error handler
 app.use((err, req, res, next) => {
-  console.error(`[${req.method} ${req.originalUrl}]`, err);
+  res.locals.requestErrorMessage =
+    err instanceof Error ? err.message : String(err);
+  logger.error(`[${req.method} ${req.path}]`, err);
 
   if (res.headersSent) {
     return next(err);
@@ -92,7 +132,7 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     await initDb();
-    app.listen(3000, () => console.log("Camagru running on port 3000"));
+    app.listen(3000, () => logger.info("Camagru running on port 3000"));
   } catch (error) {
     onFatalError("Database initialization failed", error);
   }

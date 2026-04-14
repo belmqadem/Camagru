@@ -3,6 +3,7 @@ if (!process.env.SMTP_HOST || !process.env.SMTP_PORT) {
 }
 
 const nodemailer = require("nodemailer");
+const logger = require("./logger");
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -10,7 +11,7 @@ const transporter = nodemailer.createTransport({
 });
 
 transporter.verify().catch((err) => {
-  console.error("SMTP transporter verification failed:", err);
+  logger.error("SMTP transporter verification failed", err);
 });
 
 const sendMail = async (to, subject, html) => {

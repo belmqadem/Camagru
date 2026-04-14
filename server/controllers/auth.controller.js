@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const userModel = require("../models/user.model");
 const { sendMail } = require("../core/mailer");
 const { generate } = require("../core/csrf");
+const logger = require("../core/logger");
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
@@ -152,7 +153,7 @@ exports.postForgot = async (req, res) => {
     <a href="${link}">Reset my password</a>
   `,
     ).catch((error) => {
-      console.error("Failed to send reset password email:", error);
+      logger.error("Failed to send reset password email", error);
     });
   }
 

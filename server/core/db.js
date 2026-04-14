@@ -14,6 +14,7 @@ if (missingDbEnvVars.length > 0) {
 }
 
 const { Pool } = require("pg");
+const logger = require("./logger");
 
 const pool = new Pool({
   host: process.env.DB_HOST,
@@ -30,11 +31,11 @@ const connectWithRetry = async (retries = 5, delay = 2000) => {
     try {
       const client = await pool.connect();
       client.release();
-      console.log("Connected to PostgreSQL");
+      logger.info("Connected to PostgreSQL");
       return;
     } catch (err) {
       lastError = err;
-      console.error(`PostgreSQL connection failed (attempt ${i + 1}):`, err);
+      logger.error(`PostgreSQL connection failed (attempt ${i + 1})`, err);
       await new Promise((res) => setTimeout(res, delay));
     }
   }
