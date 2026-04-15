@@ -7,13 +7,172 @@
   const overlayList = document.getElementById("overlayList");
   const userImages = document.getElementById("userImages");
   const statusMessage = document.getElementById("statusMessage");
+  const liveOverlayPreview = document.getElementById("liveOverlayPreview");
+  const overlayTransformControls = document.getElementById(
+    "overlayTransformControls",
+  );
+  const overlayScale = document.getElementById("overlayScale");
+  const overlayScaleValue = document.getElementById("overlayScaleValue");
+  const overlayResetButton = document.getElementById("overlayResetButton");
   const csrfToken =
     document.querySelector('meta[name="csrf-token"]')?.content || "";
 
   let selectedOverlayId = null;
   let mediaStream = null;
+  let overlayTransform = null;
+  let dragState = null;
 
   const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+  const MIN_SCALE = 0.2;
+  const MAX_SCALE = 2;
+
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+  const getPreviewDimensions = () => {
+    const rect = camera.getBoundingClientRect();
+    const width = rect.width || camera.clientWidth || 0;
+    const height = rect.height || camera.clientHeight || 0;
+    return { width, height };
+  };
+
+  const isWebcamReady = () =>
+    Boolean(
+      mediaStream &&
+      !camera.hidden &&
+      camera.videoWidth > 0 &&
+      camera.videoHeight > 0,
+    );
+
+  const updateScaleLabel = () => {
+    if (!overlayScaleValue || !overlayScale) return;
+    overlayScaleValue.textContent = `${Math.round(Number(overlayScale.value) * 100)}%`;
+  };
+
+  const getMaxScale = () => {
+    if (!overlayTransform) return MAX_SCALE;
+    const { baseWidthRatio, baseHeightRatio } = overlayTransform;
+    return Math.max(
+      MIN_SCALE,
+      Math.min(MAX_SCALE, 1 / baseWidthRatio, 1 / baseHeightRatio),
+    );
+  };
+
+  const getCurrentPlacement = () => {
+    if (!overlayTransform) return null;
+
+    const maxScale = getMaxScale();
+    const effectiveScale = clamp(overlayTransform.scale, MIN_SCALE, maxScale);
+    const widthRatio = overlayTransform.baseWidthRatio * effectiveScale;
+    const heightRatio = overlayTransform.baseHeightRatio * effectiveScale;
+    const maxX = Math.max(0, 1 - widthRatio);
+    const maxY = Math.max(0, 1 - heightRatio);
+
+    return {
+      scale: effectiveScale,
+      widthRatio,
+      heightRatio,
+      xRatio: clamp(overlayTransform.xRatio, 0, maxX),
+      yRatio: clamp(overlayTransform.yRatio, 0, maxY),
+    };
+  };
+
+  const renderLiveOverlay = () => {
+    if (!liveOverlayPreview) return;
+
+    const placement = getCurrentPlacement();
+    if (!selectedOverlayId || !isWebcamReady() || !placement) {
+      liveOverlayPreview.classList.remove("visible");
+      overlayTransformControls.hidden = true;
+      return;
+    }
+
+    const { width, height } = getPreviewDimensions();
+    if (!width || !height) {
+      liveOverlayPreview.classList.remove("visible");
+      overlayTransformControls.hidden = true;
+      return;
+    }
+
+    overlayTransform.scale = placement.scale;
+    overlayTransform.xRatio = placement.xRatio;
+    overlayTransform.yRatio = placement.yRatio;
+
+    liveOverlayPreview.style.left = `${placement.xRatio * width}px`;
+    liveOverlayPreview.style.top = `${placement.yRatio * height}px`;
+    liveOverlayPreview.style.width = `${placement.widthRatio * width}px`;
+    liveOverlayPreview.style.height = `${placement.heightRatio * height}px`;
+    liveOverlayPreview.classList.add("visible");
+
+    overlayTransformControls.hidden = false;
+    overlayScale.max = String(getMaxScale());
+    overlayScale.value = String(overlayTransform.scale);
+    updateScaleLabel();
+  };
+
+  const applyScale = (nextScale) => {
+    if (!overlayTransform) return;
+
+    const current = getCurrentPlacement();
+    if (!current) return;
+
+    const centerX = current.xRatio + current.widthRatio / 2;
+    const centerY = current.yRatio + current.heightRatio / 2;
+
+    overlayTransform.scale = clamp(nextScale, MIN_SCALE, getMaxScale());
+    const next = getCurrentPlacement();
+    if (!next) return;
+
+    overlayTransform.xRatio = clamp(
+      centerX - next.widthRatio / 2,
+      0,
+      Math.max(0, 1 - next.widthRatio),
+    );
+    overlayTransform.yRatio = clamp(
+      centerY - next.heightRatio / 2,
+      0,
+      Math.max(0, 1 - next.heightRatio),
+    );
+
+    renderLiveOverlay();
+  };
+
+  const createDefaultTransform = () => {
+    if (!liveOverlayPreview || !liveOverlayPreview.naturalWidth) {
+      overlayTransform = null;
+      renderLiveOverlay();
+      return;
+    }
+
+    const { width, height } = getPreviewDimensions();
+    if (!width || !height) {
+      overlayTransform = null;
+      renderLiveOverlay();
+      return;
+    }
+
+    const aspect =
+      liveOverlayPreview.naturalWidth / liveOverlayPreview.naturalHeight;
+    let baseWidthRatio = 0.35;
+    let baseHeightRatio = (baseWidthRatio * width) / (aspect * height);
+
+    if (baseHeightRatio > 0.6) {
+      baseHeightRatio = 0.6;
+      baseWidthRatio = (baseHeightRatio * height * aspect) / width;
+    }
+
+    baseWidthRatio = clamp(baseWidthRatio, 0.08, 0.95);
+    baseHeightRatio = clamp(baseHeightRatio, 0.08, 0.95);
+
+    overlayTransform = {
+      xRatio: (1 - baseWidthRatio) / 2,
+      yRatio: (1 - baseHeightRatio) / 2,
+      baseWidthRatio,
+      baseHeightRatio,
+      scale: 1,
+    };
+
+    renderLiveOverlay();
+  };
 
   const setStatus = (message, isError = false) => {
     statusMessage.textContent = message;
@@ -27,6 +186,11 @@
   const showFallback = (message) => {
     camera.hidden = true;
     fallbackUpload.hidden = false;
+    overlayTransform = null;
+    if (liveOverlayPreview) {
+      liveOverlayPreview.classList.remove("visible");
+    }
+    overlayTransformControls.hidden = true;
     setStatus(message || "Webcam unavailable. Upload an image to continue.");
   };
 
@@ -48,6 +212,10 @@
       camera.hidden = false;
       fallbackUpload.hidden = true;
       await camera.play();
+      if (selectedOverlayId && liveOverlayPreview?.src) {
+        createDefaultTransform();
+      }
+      renderLiveOverlay();
       setStatus("Webcam ready. Pick an overlay and capture.");
     } catch (_error) {
       showFallback("Unable to access webcam. Upload an image instead.");
@@ -70,11 +238,7 @@
     });
 
   const getSourceBlob = async () => {
-    const webcamReady =
-      mediaStream &&
-      !camera.hidden &&
-      camera.videoWidth > 0 &&
-      camera.videoHeight > 0;
+    const webcamReady = isWebcamReady();
 
     if (webcamReady) {
       captureCanvas.width = camera.videoWidth;
@@ -173,9 +337,119 @@
     });
 
     selectedOverlayId = target.dataset.overlayId;
+    const selectedImage = target.querySelector("img");
+
+    if (selectedImage?.src && liveOverlayPreview) {
+      liveOverlayPreview.src = selectedImage.src;
+      if (liveOverlayPreview.complete) {
+        createDefaultTransform();
+      } else {
+        liveOverlayPreview.onload = () => {
+          createDefaultTransform();
+        };
+      }
+    }
+
     updateCaptureButtonState();
     setStatus("Overlay selected. Ready to capture.");
   });
+
+  overlayScale.addEventListener("input", () => {
+    applyScale(Number(overlayScale.value));
+  });
+
+  overlayResetButton.addEventListener("click", () => {
+    createDefaultTransform();
+  });
+
+  liveOverlayPreview.addEventListener("pointerdown", (event) => {
+    if (!overlayTransform || !isWebcamReady()) {
+      return;
+    }
+
+    event.preventDefault();
+    dragState = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startXRatio: overlayTransform.xRatio,
+      startYRatio: overlayTransform.yRatio,
+    };
+
+    liveOverlayPreview.classList.add("dragging");
+    if (liveOverlayPreview.setPointerCapture) {
+      liveOverlayPreview.setPointerCapture(event.pointerId);
+    }
+  });
+
+  liveOverlayPreview.addEventListener("pointermove", (event) => {
+    if (
+      !dragState ||
+      event.pointerId !== dragState.pointerId ||
+      !overlayTransform
+    ) {
+      return;
+    }
+
+    const { width, height } = getPreviewDimensions();
+    if (!width || !height) {
+      return;
+    }
+
+    const placement = getCurrentPlacement();
+    if (!placement) {
+      return;
+    }
+
+    const deltaXRatio = (event.clientX - dragState.startClientX) / width;
+    const deltaYRatio = (event.clientY - dragState.startClientY) / height;
+
+    overlayTransform.xRatio = clamp(
+      dragState.startXRatio + deltaXRatio,
+      0,
+      Math.max(0, 1 - placement.widthRatio),
+    );
+    overlayTransform.yRatio = clamp(
+      dragState.startYRatio + deltaYRatio,
+      0,
+      Math.max(0, 1 - placement.heightRatio),
+    );
+
+    renderLiveOverlay();
+  });
+
+  const stopDragging = (event) => {
+    if (!dragState) {
+      return;
+    }
+
+    if (
+      event &&
+      event.pointerId !== undefined &&
+      event.pointerId !== dragState.pointerId
+    ) {
+      return;
+    }
+
+    if (
+      event &&
+      event.pointerId !== undefined &&
+      liveOverlayPreview.releasePointerCapture
+    ) {
+      try {
+        liveOverlayPreview.releasePointerCapture(event.pointerId);
+      } catch (_error) {
+        // Ignore release errors if capture already ended.
+      }
+    }
+
+    dragState = null;
+    liveOverlayPreview.classList.remove("dragging");
+  };
+
+  liveOverlayPreview.addEventListener("pointerup", stopDragging);
+  liveOverlayPreview.addEventListener("pointercancel", stopDragging);
+  liveOverlayPreview.addEventListener("lostpointercapture", stopDragging);
 
   captureButton.addEventListener("click", async () => {
     if (!selectedOverlayId) {
@@ -191,6 +465,19 @@
       formData.append("image", sourceBlob, "capture.jpg");
       formData.append("overlayId", selectedOverlayId);
       formData.append("_csrf", csrfToken);
+
+      if (isWebcamReady()) {
+        const placement = getCurrentPlacement();
+        if (placement) {
+          formData.append("overlayXRatio", placement.xRatio.toFixed(6));
+          formData.append("overlayYRatio", placement.yRatio.toFixed(6));
+          formData.append("overlayWidthRatio", placement.widthRatio.toFixed(6));
+          formData.append(
+            "overlayHeightRatio",
+            placement.heightRatio.toFixed(6),
+          );
+        }
+      }
 
       const response = await fetch("/edit/capture", {
         method: "POST",
@@ -265,7 +552,9 @@
   });
 
   window.addEventListener("beforeunload", stopWebcam);
+  window.addEventListener("resize", renderLiveOverlay);
 
   updateCaptureButtonState();
+  updateScaleLabel();
   startWebcam();
 })();

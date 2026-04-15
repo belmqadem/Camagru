@@ -31,6 +31,70 @@ const formatDate = (value) => {
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
 };
 
+const parseOverlayPlacement = (body, imageWidth, imageHeight) => {
+  const parseRatio = (raw) => {
+    if (raw === undefined || raw === null || raw === "") {
+      return null;
+    }
+
+    const parsed = Number.parseFloat(String(raw));
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const xRatio = parseRatio(body.overlayXRatio);
+  const yRatio = parseRatio(body.overlayYRatio);
+  const widthRatio = parseRatio(body.overlayWidthRatio);
+  const heightRatio = parseRatio(body.overlayHeightRatio);
+
+  const values = [xRatio, yRatio, widthRatio, heightRatio];
+  const hasAnyPlacementValue = values.some((value) => value !== null);
+
+  if (!hasAnyPlacementValue) {
+    return {
+      left: 0,
+      top: 0,
+      width: imageWidth,
+      height: imageHeight,
+    };
+  }
+
+  if (values.some((value) => value === null)) {
+    throw toHttpError(400, "Invalid overlay placement");
+  }
+
+  if (
+    xRatio < 0 ||
+    xRatio > 1 ||
+    yRatio < 0 ||
+    yRatio > 1 ||
+    widthRatio <= 0 ||
+    widthRatio > 1 ||
+    heightRatio <= 0 ||
+    heightRatio > 1
+  ) {
+    throw toHttpError(400, "Invalid overlay placement");
+  }
+
+  const width = Math.max(1, Math.round(imageWidth * widthRatio));
+  const height = Math.max(1, Math.round(imageHeight * heightRatio));
+
+  const safeWidth = Math.min(width, imageWidth);
+  const safeHeight = Math.min(height, imageHeight);
+
+  const maxLeft = Math.max(0, imageWidth - safeWidth);
+  const maxTop = Math.max(0, imageHeight - safeHeight);
+
+  const left = Math.min(maxLeft, Math.max(0, Math.round(imageWidth * xRatio)));
+  const top = Math.min(maxTop, Math.max(0, Math.round(imageHeight * yRatio)));
+
+  return {
+    left,
+    top,
+    width: safeWidth,
+    height: safeHeight,
+  };
+};
+
 const renderEditHtml = ({ overlays, userImages, csrfToken, user }) => {
   const overlaysMarkup = overlays.length
     ? overlays
@@ -122,13 +186,26 @@ exports.postCapture = async (req, res) => {
       throw toHttpError(400, "Invalid source image");
     }
 
+    const placement = parseOverlayPlacement(
+      req.body,
+      metadata.width,
+      metadata.height,
+    );
+
     const overlayBuffer = await sharp(overlayPath)
-      .resize(metadata.width, metadata.height, { fit: "fill" })
+      .resize(placement.width, placement.height, { fit: "fill" })
       .png()
       .toBuffer();
 
     await userPhoto
-      .composite([{ input: overlayBuffer, blend: "over" }])
+      .composite([
+        {
+          input: overlayBuffer,
+          blend: "over",
+          left: placement.left,
+          top: placement.top,
+        },
+      ])
       .jpeg({ quality: 90 })
       .toFile(outputPath);
 

@@ -122,12 +122,40 @@
         place-items: center;
       }
 
+      .camera-wrap {
+        width: 100%;
+        position: relative;
+      }
+
       #camera {
         max-width: 100%;
         width: 100%;
         border-radius: 10px;
         border: 1px solid var(--line);
         display: block;
+      }
+
+      #liveOverlayPreview {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 120px;
+        height: auto;
+        pointer-events: auto;
+        cursor: grab;
+        border-radius: 10px;
+        display: none;
+        user-select: none;
+        touch-action: none;
+        box-shadow: 0 8px 18px rgba(20, 20, 20, 0.28);
+      }
+
+      #liveOverlayPreview.visible {
+        display: block;
+      }
+
+      #liveOverlayPreview.dragging {
+        cursor: grabbing;
       }
 
       .fallback-upload {
@@ -146,6 +174,50 @@
         display: flex;
         gap: 8px;
         flex-wrap: wrap;
+      }
+
+      .overlay-transform-controls {
+        margin-top: 10px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px;
+        background: var(--surface-2);
+        display: grid;
+        gap: 8px;
+      }
+
+      .overlay-transform-controls[hidden] {
+        display: none;
+      }
+
+      .overlay-transform-controls label {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .overlay-transform-controls input[type="range"] {
+        width: 100%;
+      }
+
+      .overlay-transform-controls .row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .overlay-transform-controls .hint {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      #overlayResetButton {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--text);
+        font: inherit;
+        padding: 6px 10px;
       }
 
       .capture-btn {
@@ -299,7 +371,10 @@
         <section class="panel editor-panel">
           <h2>Capture</h2>
           <div class="capture-stage">
-            <video id="camera" autoplay playsinline muted></video>
+            <div class="camera-wrap">
+              <video id="camera" autoplay playsinline muted></video>
+              <img id="liveOverlayPreview" alt="Live overlay preview" />
+            </div>
             <div id="fallbackUpload" class="fallback-upload" hidden>
               <label for="fileInput"
                 >Webcam not available. Upload an image instead:</label
@@ -314,6 +389,31 @@
             <button id="captureButton" class="capture-btn" disabled>
               Capture With Selected Overlay
             </button>
+          </div>
+
+          <div
+            id="overlayTransformControls"
+            class="overlay-transform-controls"
+            hidden
+          >
+            <div class="row">
+              <label for="overlayScale">Overlay size</label>
+              <span id="overlayScaleValue">100%</span>
+            </div>
+            <input
+              id="overlayScale"
+              type="range"
+              min="0.2"
+              max="2"
+              step="0.01"
+              value="1"
+            />
+            <div class="row">
+              <span class="hint"
+                >Drag the overlay directly on the camera to move it.</span
+              >
+              <button id="overlayResetButton" type="button">Reset</button>
+            </div>
           </div>
 
           <p id="statusMessage" class="status" aria-live="polite"></p>
