@@ -30,6 +30,16 @@ const userModel = {
     return result.rows[0] || null;
   },
 
+  findById: async (id) => {
+    const result = await pool.query(
+      `SELECT id, username, email, password, verified, notify_comments
+       FROM users
+       WHERE id = $1`,
+      [id],
+    );
+    return result.rows[0] || null;
+  },
+
   findByVerifyToken: async (token) => {
     const result = await pool.query(
       `SELECT * FROM users
@@ -74,11 +84,39 @@ const userModel = {
     );
   },
 
-  // TODO: I should reset the verify_token and verify_expires fields when updating the email address, and require re-verification.
-  updateProfile: async (id, { username, email }) => {
+  updateProfile: async (
+    id,
+    { username, email, verifyToken, verifyExpires },
+  ) => {
+    if (verifyToken && verifyExpires) {
+      await pool.query(
+        `UPDATE users
+         SET username = $1,
+             email = $2,
+             verified = FALSE,
+             verify_token = $3,
+             verify_expires = $4
+         WHERE id = $5`,
+        [username, email, verifyToken, verifyExpires, id],
+      );
+      return;
+    }
+
     await pool.query(
-      "UPDATE users SET username = $1, email = $2 WHERE id = $3",
+      `UPDATE users
+       SET username = $1,
+           email = $2
+       WHERE id = $3`,
       [username, email, id],
+    );
+  },
+
+  updatePreferences: async (id, { notifyComments }) => {
+    await pool.query(
+      `UPDATE users
+       SET notify_comments = $1
+       WHERE id = $2`,
+      [notifyComments, id],
     );
   },
 };
