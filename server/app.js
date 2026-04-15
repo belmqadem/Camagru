@@ -105,7 +105,7 @@ app.use((req, res, next) => {
 
 // Routes
 app.use("/", require("./routes/auth.routes"));
-app.use("/gallery", requireAuth, require("./routes/gallery.routes"));
+app.use("/gallery", require("./routes/gallery.routes"));
 app.use("/edit", requireAuth, require("./routes/edit.routes"));
 app.use("/user", requireAuth, require("./routes/user.routes"));
 
