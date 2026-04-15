@@ -1,5 +1,6 @@
 (() => {
   const camera = document.getElementById("camera");
+  const uploadedPhotoPreview = document.getElementById("uploadedPhotoPreview");
   const fallbackUpload = document.getElementById("fallbackUpload");
   const fileInput = document.getElementById("fileInput");
   const captureButton = document.getElementById("captureButton");
@@ -21,6 +22,7 @@
   let mediaStream = null;
   let overlayTransform = null;
   let dragState = null;
+  let uploadedPreviewObjectUrl = null;
 
   const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
   const MIN_SCALE = 0.2;
@@ -28,11 +30,58 @@
 
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
+  const clearUploadedPreview = () => {
+    if (uploadedPreviewObjectUrl) {
+      URL.revokeObjectURL(uploadedPreviewObjectUrl);
+      uploadedPreviewObjectUrl = null;
+    }
+
+    if (uploadedPhotoPreview) {
+      uploadedPhotoPreview.src = "";
+      uploadedPhotoPreview.hidden = true;
+    }
+  };
+
+  const isFilePreviewReady = () =>
+    Boolean(
+      uploadedPhotoPreview &&
+      !uploadedPhotoPreview.hidden &&
+      uploadedPhotoPreview.naturalWidth > 0 &&
+      uploadedPhotoPreview.naturalHeight > 0,
+    );
+
+  const isPreviewSurfaceReady = () => isWebcamReady() || isFilePreviewReady();
+
+  const getActivePreviewSurface = () => {
+    if (isFilePreviewReady()) {
+      return uploadedPhotoPreview;
+    }
+
+    if (isWebcamReady()) {
+      return camera;
+    }
+
+    return null;
+  };
+
   const getPreviewDimensions = () => {
-    const rect = camera.getBoundingClientRect();
-    const width = rect.width || camera.clientWidth || 0;
-    const height = rect.height || camera.clientHeight || 0;
+    const surface = getActivePreviewSurface();
+    if (!surface) {
+      return { width: 0, height: 0 };
+    }
+
+    const rect = surface.getBoundingClientRect();
+    const width = surface.clientWidth || rect.width || 0;
+    const height = surface.clientHeight || rect.height || 0;
     return { width, height };
+  };
+
+  const getPlacementForCapture = () => {
+    if (!selectedOverlayId) {
+      return null;
+    }
+
+    return getCurrentPlacement();
   };
 
   const isWebcamReady = () =>
@@ -80,7 +129,7 @@
     if (!liveOverlayPreview) return;
 
     const placement = getCurrentPlacement();
-    if (!selectedOverlayId || !isWebcamReady() || !placement) {
+    if (!selectedOverlayId || !isPreviewSurfaceReady() || !placement) {
       liveOverlayPreview.classList.remove("visible");
       overlayTransformControls.hidden = true;
       return;
@@ -107,6 +156,7 @@
     overlayScale.max = String(getMaxScale());
     overlayScale.value = String(overlayTransform.scale);
     updateScaleLabel();
+    updateCaptureButtonState();
   };
 
   const applyScale = (nextScale) => {
@@ -180,17 +230,23 @@
   };
 
   const updateCaptureButtonState = () => {
-    captureButton.disabled = !selectedOverlayId;
+    captureButton.disabled = !getPlacementForCapture();
   };
 
   const showFallback = (message) => {
     camera.hidden = true;
     fallbackUpload.hidden = false;
     overlayTransform = null;
-    if (liveOverlayPreview) {
-      liveOverlayPreview.classList.remove("visible");
+    if (!isFilePreviewReady()) {
+      clearUploadedPreview();
+      if (liveOverlayPreview) {
+        liveOverlayPreview.classList.remove("visible");
+      }
+      overlayTransformControls.hidden = true;
+      updateCaptureButtonState();
+    } else {
+      renderLiveOverlay();
     }
-    overlayTransformControls.hidden = true;
     setStatus(message || "Webcam unavailable. Upload an image to continue.");
   };
 
@@ -211,11 +267,13 @@
       camera.srcObject = mediaStream;
       camera.hidden = false;
       fallbackUpload.hidden = true;
+      clearUploadedPreview();
       await camera.play();
       if (selectedOverlayId && liveOverlayPreview?.src) {
         createDefaultTransform();
       }
       renderLiveOverlay();
+      updateCaptureButtonState();
       setStatus("Webcam ready. Pick an overlay and capture.");
     } catch (_error) {
       showFallback("Unable to access webcam. Upload an image instead.");
@@ -268,6 +326,55 @@
     }
 
     return file;
+  };
+
+  const handleFileSelection = () => {
+    const file = fileInput?.files?.[0];
+    if (!file) {
+      clearUploadedPreview();
+      overlayTransform = null;
+      renderLiveOverlay();
+      updateCaptureButtonState();
+      return;
+    }
+
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      setStatus("Only JPEG and PNG files are allowed", true);
+      fileInput.value = "";
+      clearUploadedPreview();
+      overlayTransform = null;
+      renderLiveOverlay();
+      updateCaptureButtonState();
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setStatus("Image size must be 5MB or less", true);
+      fileInput.value = "";
+      clearUploadedPreview();
+      overlayTransform = null;
+      renderLiveOverlay();
+      updateCaptureButtonState();
+      return;
+    }
+
+    clearUploadedPreview();
+    uploadedPreviewObjectUrl = URL.createObjectURL(file);
+    uploadedPhotoPreview.src = uploadedPreviewObjectUrl;
+    uploadedPhotoPreview.hidden = false;
+
+    camera.hidden = true;
+    fallbackUpload.hidden = false;
+
+    uploadedPhotoPreview.onload = () => {
+      if (selectedOverlayId && liveOverlayPreview?.src) {
+        createDefaultTransform();
+      } else {
+        renderLiveOverlay();
+      }
+      updateCaptureButtonState();
+      setStatus("Photo loaded. Position and resize overlay before capture.");
+    };
   };
 
   const removeEmptyStateIfNeeded = () => {
@@ -337,6 +444,8 @@
     });
 
     selectedOverlayId = target.dataset.overlayId;
+    overlayTransform = null;
+    updateCaptureButtonState();
     const selectedImage = target.querySelector("img");
 
     if (selectedImage?.src && liveOverlayPreview) {
@@ -358,12 +467,14 @@
     applyScale(Number(overlayScale.value));
   });
 
+  fileInput.addEventListener("change", handleFileSelection);
+
   overlayResetButton.addEventListener("click", () => {
     createDefaultTransform();
   });
 
   liveOverlayPreview.addEventListener("pointerdown", (event) => {
-    if (!overlayTransform || !isWebcamReady()) {
+    if (!overlayTransform || !isPreviewSurfaceReady()) {
       return;
     }
 
@@ -457,6 +568,13 @@
       return;
     }
 
+    const placement = getPlacementForCapture();
+    if (!placement) {
+      setStatus("Overlay is still loading. Try again in a moment.", true);
+      updateCaptureButtonState();
+      return;
+    }
+
     captureButton.disabled = true;
 
     try {
@@ -466,18 +584,10 @@
       formData.append("overlayId", selectedOverlayId);
       formData.append("_csrf", csrfToken);
 
-      if (isWebcamReady()) {
-        const placement = getCurrentPlacement();
-        if (placement) {
-          formData.append("overlayXRatio", placement.xRatio.toFixed(6));
-          formData.append("overlayYRatio", placement.yRatio.toFixed(6));
-          formData.append("overlayWidthRatio", placement.widthRatio.toFixed(6));
-          formData.append(
-            "overlayHeightRatio",
-            placement.heightRatio.toFixed(6),
-          );
-        }
-      }
+      formData.append("overlayXRatio", placement.xRatio.toFixed(6));
+      formData.append("overlayYRatio", placement.yRatio.toFixed(6));
+      formData.append("overlayWidthRatio", placement.widthRatio.toFixed(6));
+      formData.append("overlayHeightRatio", placement.heightRatio.toFixed(6));
 
       const response = await fetch("/edit/capture", {
         method: "POST",
@@ -497,7 +607,7 @@
       prependUserImage({ imageId: data.imageId, filename: data.filename });
       setStatus("Image saved.");
 
-      if (fileInput) {
+      if (fileInput && isWebcamReady()) {
         fileInput.value = "";
       }
     } catch (error) {
@@ -552,6 +662,7 @@
   });
 
   window.addEventListener("beforeunload", stopWebcam);
+  window.addEventListener("beforeunload", clearUploadedPreview);
   window.addEventListener("resize", renderLiveOverlay);
 
   updateCaptureButtonState();
