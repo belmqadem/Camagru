@@ -15,6 +15,11 @@
   const overlayScale = document.getElementById("overlayScale");
   const overlayScaleValue = document.getElementById("overlayScaleValue");
   const overlayResetButton = document.getElementById("overlayResetButton");
+  const imagePreviewModal = document.getElementById("imagePreviewModal");
+  const imagePreviewContent = document.getElementById("imagePreviewContent");
+  const closeImagePreviewButton = document.getElementById(
+    "closeImagePreviewButton",
+  );
   const csrfToken =
     document.querySelector('meta[name="csrf-token"]')?.content || "";
 
@@ -23,6 +28,7 @@
   let overlayTransform = null;
   let dragState = null;
   let uploadedPreviewObjectUrl = null;
+  let fallbackModeEnabled = false;
 
   const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
   const MIN_SCALE = 0.2;
@@ -234,6 +240,7 @@
   };
 
   const showFallback = (message) => {
+    fallbackModeEnabled = true;
     camera.hidden = true;
     fallbackUpload.hidden = false;
     overlayTransform = null;
@@ -264,9 +271,13 @@
 
     try {
       mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      fallbackModeEnabled = false;
       camera.srcObject = mediaStream;
       camera.hidden = false;
       fallbackUpload.hidden = true;
+      if (fileInput) {
+        fileInput.value = "";
+      }
       clearUploadedPreview();
       await camera.play();
       if (selectedOverlayId && liveOverlayPreview?.src) {
@@ -329,6 +340,13 @@
   };
 
   const handleFileSelection = () => {
+    if (!fallbackModeEnabled) {
+      if (fileInput) {
+        fileInput.value = "";
+      }
+      return;
+    }
+
     const file = fileInput?.files?.[0];
     if (!file) {
       clearUploadedPreview();
@@ -416,6 +434,9 @@
     const createdAt = document.createElement("span");
     createdAt.textContent = new Date().toLocaleString();
 
+    const actions = document.createElement("div");
+    actions.className = "image-card-actions";
+
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "delete-image-btn";
@@ -423,7 +444,8 @@
     deleteButton.textContent = "Delete";
 
     meta.appendChild(createdAt);
-    meta.appendChild(deleteButton);
+    actions.appendChild(deleteButton);
+    meta.appendChild(actions);
     card.appendChild(image);
     card.appendChild(meta);
 
@@ -617,7 +639,32 @@
     }
   });
 
+  const openImagePreview = (src, alt) => {
+    if (!imagePreviewModal || !imagePreviewContent || !src) {
+      return;
+    }
+
+    imagePreviewContent.src = src;
+    imagePreviewContent.alt = alt || "Expanded photo preview";
+    imagePreviewModal.hidden = false;
+  };
+
+  const closeImagePreview = () => {
+    if (!imagePreviewModal || !imagePreviewContent) {
+      return;
+    }
+
+    imagePreviewModal.hidden = true;
+    imagePreviewContent.removeAttribute("src");
+  };
+
   userImages.addEventListener("click", async (event) => {
+    const cardImage = event.target.closest(".user-image-card img");
+    if (cardImage) {
+      openImagePreview(cardImage.src, cardImage.alt);
+      return;
+    }
+
     const button = event.target.closest(".delete-image-btn");
     if (!button) {
       return;
@@ -658,6 +705,28 @@
     } catch (error) {
       setStatus(error.message || "Delete failed", true);
       button.disabled = false;
+    }
+  });
+
+  if (closeImagePreviewButton) {
+    closeImagePreviewButton.addEventListener("click", closeImagePreview);
+  }
+
+  if (imagePreviewModal) {
+    imagePreviewModal.addEventListener("click", (event) => {
+      if (event.target.closest('[data-close-preview="true"]')) {
+        closeImagePreview();
+      }
+    });
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (
+      event.key === "Escape" &&
+      imagePreviewModal &&
+      !imagePreviewModal.hidden
+    ) {
+      closeImagePreview();
     }
   });
 

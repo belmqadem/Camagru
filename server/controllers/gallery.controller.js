@@ -26,6 +26,30 @@ const parsePage = (value) => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 };
 
+const renderNavAuth = ({ currentUser, csrfToken }) => {
+  if (!currentUser) {
+    return [
+      '<a class="nav-link" href="/login">Login</a>',
+      '<a class="nav-link" href="/register">Register</a>',
+    ].join("");
+  }
+
+  return `
+    <a class="nav-link nav-camera" href="/edit" aria-label="Open editor">📷</a>
+    <span class="nav-user">${escapeHtml(currentUser.username || "User")}</span>
+    <details class="profile-menu">
+      <summary class="avatar-button" aria-label="Profile menu">👤</summary>
+      <div class="dropdown">
+        <a class="dropdown-link" href="/user/profile">Profile</a>
+        <form method="POST" action="/logout">
+          <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
+          <button type="submit" class="dropdown-logout">Logout</button>
+        </form>
+      </div>
+    </details>
+  `;
+};
+
 const renderGalleryHTML = ({
   images,
   currentPage,
@@ -49,35 +73,39 @@ const renderGalleryHTML = ({
 
       const interactionMarkup = currentUser
         ? `
-					<form class="like-form" method="POST" action="/gallery/${image.id}/like">
-						<input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-						<input type="hidden" name="page" value="${currentPage}">
-						<button type="submit">${image.viewer_liked ? "Unlike" : "Like"}</button>
-					</form>
-					<form class="comment-form" method="POST" action="/gallery/${image.id}/comment">
-						<input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-						<input type="hidden" name="page" value="${currentPage}">
-						<input type="text" name="content" maxlength="${MAX_COMMENT_LENGTH}" placeholder="Add a comment" required>
-						<button type="submit">Comment</button>
-					</form>
+          <div class="interaction-row">
+            <form class="like-form" method="POST" action="/gallery/${image.id}/like">
+              <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
+              <input type="hidden" name="page" value="${currentPage}">
+              <button class="btn" type="submit">${image.viewer_liked ? "Unlike" : "Like"}</button>
+            </form>
+            <form class="comment-form" method="POST" action="/gallery/${image.id}/comment">
+              <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
+              <input type="hidden" name="page" value="${currentPage}">
+              <input class="input" type="text" name="content" maxlength="${MAX_COMMENT_LENGTH}" placeholder="Add a comment" required>
+              <button class="btn" type="submit">Comment</button>
+            </form>
+          </div>
 				`
         : '<p class="interaction-hint"><a href="/login">Log in</a> to interact.</p>';
 
       return `
 				<article class="image-card" id="image-${image.id}">
-					<div class="image-header">
-						<strong>${escapeHtml(image.author_username)}</strong>
-						<span class="filename">${escapeHtml(image.filename)}</span>
-					</div>
-					<img src="/public/uploads/${encodeURIComponent(image.filename)}" alt="${escapeHtml(
-            image.filename,
-          )}">
-					<div class="meta">
-						<span>${image.like_count} likes</span>
-						<span>${image.comment_count} comments</span>
-					</div>
-					${interactionMarkup}
-					<ul class="comments">${commentsMarkup}</ul>
+          <details class="image-disclosure">
+            <summary>
+              <div class="card-preview">
+                <img src="/public/uploads/${encodeURIComponent(image.filename)}" alt="${escapeHtml(image.filename)}">
+                <div class="card-meta">
+                  <span class="card-author">${escapeHtml(image.author_username)}</span>
+                  <span class="meta-stats">${image.like_count} likes · ${image.comment_count} comments</span>
+                </div>
+              </div>
+            </summary>
+            <div class="card-expanded">
+              ${interactionMarkup}
+              <ul class="comments">${commentsMarkup}</ul>
+            </div>
+          </details>
 				</article>
 			`;
     })
@@ -93,6 +121,8 @@ const renderGalleryHTML = ({
       : '<span class="pager-link disabled">Next</span>';
 
   return galleryTemplate
+    .replace("{{CSRF_TOKEN}}", escapeHtml(csrfToken))
+    .replace("{{NAV_AUTH}}", renderNavAuth({ currentUser, csrfToken }))
     .replace("{{PAGE_INFO}}", `Page ${currentPage} of ${totalPages}`)
     .replace(
       "{{AUTH_HINT}}",
