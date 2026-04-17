@@ -4,6 +4,9 @@ up:
 build:
 	@docker compose up --build -d
 
+restart-app:
+	@docker compose restart app
+
 logs:
 	@docker compose logs -f
 
@@ -19,4 +22,4 @@ down:
 psql:
 	@docker compose exec db sh -lc 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
 
-.PHONY: up build logs logs-db logs-app down psql
+.PHONY: up build logs logs-db logs-app down psql restart-app

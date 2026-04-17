@@ -107,6 +107,10 @@ app.get("/", (req, res) => {
   res.redirect("/gallery");
 });
 
+app.get("/health", (_req, res) => {
+  res.send("OK");
+});
+
 // Routes
 app.use("/", require("./routes/auth.routes"));
 app.use("/gallery", require("./routes/gallery.routes"));
