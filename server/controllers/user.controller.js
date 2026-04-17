@@ -31,6 +31,7 @@ const normalizeEmail = (value) =>
 const getStatusMessage = (query = {}) => {
   if (query.info === "success") {
     return {
+      target: "info",
       type: "success",
       text: "Profile information updated successfully.",
     };
@@ -38,6 +39,7 @@ const getStatusMessage = (query = {}) => {
 
   if (query.info === "verify_sent") {
     return {
+      target: "info",
       type: "success",
       text: "Profile updated. We sent a confirmation email to your new address. Please verify it.",
     };
@@ -45,6 +47,7 @@ const getStatusMessage = (query = {}) => {
 
   if (query.password === "success") {
     return {
+      target: "password",
       type: "success",
       text: "Password updated successfully.",
     };
@@ -52,6 +55,7 @@ const getStatusMessage = (query = {}) => {
 
   if (query.preferences === "success") {
     return {
+      target: "preferences",
       type: "success",
       text: "Preferences updated successfully.",
     };
@@ -72,29 +76,81 @@ const getStatusMessage = (query = {}) => {
   };
 
   if (query.error && errorMessages[query.error]) {
+    const passwordErrors = new Set([
+      "current_password_invalid",
+      "password_weak",
+      "password_mismatch",
+    ]);
+
     return {
+      target: passwordErrors.has(query.error) ? "password" : "info",
       type: "error",
       text: errorMessages[query.error],
     };
   }
 
   return {
+    target: "",
     type: "",
     text: "",
   };
 };
 
-const renderProfilePage = ({ user, csrfToken, message }) => {
-  const statusClass = message.type ? `status ${message.type}` : "status hidden";
+const renderNavAuth = ({ sessionUser, csrfToken }) => {
+  if (!sessionUser) {
+    return [
+      '<a class="nav-link" href="/login">Login</a>',
+      '<a class="nav-link" href="/register">Register</a>',
+    ].join("");
+  }
+
+  return `
+    <a class="nav-link nav-camera" href="/edit" aria-label="Open editor">📷</a>
+    <span class="nav-user">${escapeHtml(sessionUser.username || "User")}</span>
+    <details class="profile-menu">
+      <summary class="avatar-button" aria-label="Profile menu">👤</summary>
+      <div class="dropdown">
+        <a class="dropdown-link" href="/user/profile">Profile</a>
+        <form method="POST" action="/logout">
+          <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
+          <button type="submit" class="dropdown-logout">Logout</button>
+        </form>
+      </div>
+    </details>
+  `;
+};
+
+const renderProfilePage = ({ user, sessionUser, csrfToken, message }) => {
   const checkedAttribute = user.notify_comments ? "checked" : "";
+
+  const buildStatusClass = (target) => {
+    if (!message.type || message.target !== target) {
+      return "form-status hidden";
+    }
+    return `form-status ${message.type}`;
+  };
+
+  const buildStatusMessage = (target) =>
+    message.target === target ? message.text || "" : "";
 
   return profileTemplate
     .replace(/{{CSRF_TOKEN}}/g, escapeHtml(csrfToken))
+    .replace("{{NAV_AUTH}}", renderNavAuth({ sessionUser, csrfToken }))
     .replace(/{{USERNAME_VALUE}}/g, escapeHtml(user.username || ""))
     .replace(/{{EMAIL_VALUE}}/g, escapeHtml(user.email || ""))
     .replace(/{{NOTIFY_COMMENTS_CHECKED}}/g, checkedAttribute)
-    .replace(/{{STATUS_CLASS}}/g, statusClass)
-    .replace(/{{STATUS_MESSAGE}}/g, escapeHtml(message.text || ""));
+    .replace(/{{INFO_STATUS_CLASS}}/g, buildStatusClass("info"))
+    .replace(/{{INFO_STATUS_MESSAGE}}/g, escapeHtml(buildStatusMessage("info")))
+    .replace(/{{PASSWORD_STATUS_CLASS}}/g, buildStatusClass("password"))
+    .replace(
+      /{{PASSWORD_STATUS_MESSAGE}}/g,
+      escapeHtml(buildStatusMessage("password")),
+    )
+    .replace(/{{PREFERENCES_STATUS_CLASS}}/g, buildStatusClass("preferences"))
+    .replace(
+      /{{PREFERENCES_STATUS_MESSAGE}}/g,
+      escapeHtml(buildStatusMessage("preferences")),
+    );
 };
 
 exports.getProfile = async (req, res) => {
@@ -106,6 +162,7 @@ exports.getProfile = async (req, res) => {
   return res.send(
     renderProfilePage({
       user,
+      sessionUser: req.session.user,
       csrfToken: generate(req),
       message: getStatusMessage(req.query || {}),
     }),

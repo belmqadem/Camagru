@@ -103,6 +103,10 @@ app.use((req, res, next) => {
   next();
 });
 
+app.get("/", (req, res) => {
+  res.redirect("/gallery");
+});
+
 // Routes
 app.use("/", require("./routes/auth.routes"));
 app.use("/gallery", require("./routes/gallery.routes"));

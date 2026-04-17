@@ -5,173 +5,117 @@ const escapeHtml = (value) =>
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;");
 
+const loggedOutNav = [
+  '<a class="nav-link" href="/login">Login</a>',
+  '<a class="nav-link" href="/register">Register</a>',
+].join("");
+
 const authPageHTML = ({
   title,
   subtitle,
+  csrf,
   message = "",
   messageType = "error",
   form,
   links = [],
-}) => `
+}) => {
+  const template = `
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="csrf-token" content="{{CSRF_TOKEN}}" />
     <title>${title} | Camagru</title>
-    <style>
-      :root {
-        --bg: #f3f5f7;
-        --card: #ffffff;
-        --text: #0f172a;
-        --muted: #475569;
-        --line: #dbe2ea;
-        --primary: #2563eb;
-        --primary-hover: #1d4ed8;
-        --ok-bg: #ecfdf3;
-        --ok-text: #166534;
-        --info-bg: #eff6ff;
-        --info-text: #1d4ed8;
-        --success-bg: #ecfdf3;
-        --success-text: #166534;
-        --error-bg: #fef2f2;
-        --error-text: #b91c1c;
-      }
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        background: radial-gradient(circle at 20% 20%, #e2e8f0 0%, var(--bg) 45%);
-        color: var(--text);
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-      }
-      .card {
-        width: min(100%, 420px);
-        background: var(--card);
-        border: 1px solid var(--line);
-        border-radius: 14px;
-        padding: 28px 24px;
-        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
-      }
-      h1 {
-        margin: 0 0 8px;
-        font-size: 24px;
-        line-height: 1.2;
-      }
-      p {
-        margin: 0;
-        color: var(--muted);
-      }
-      .badge {
-        margin: 14px 0 0;
-        padding: 10px 12px;
-        border-radius: 999px;
-        font-size: 13px;
-        font-weight: 600;
-      }
-      .badge-info {
-        background: var(--info-bg);
-        color: var(--info-text);
-      }
-      .badge-success {
-        background: var(--success-bg);
-        color: var(--success-text);
-      }
-      .badge-error {
-        background: var(--error-bg);
-        color: var(--error-text);
-      }
-      form {
-        margin-top: 20px;
-        display: grid;
-        gap: 12px;
-      }
-      input {
-        width: 100%;
-        padding: 10px 12px;
-        border-radius: 8px;
-        border: 1px solid var(--line);
-        font: inherit;
-      }
-      button {
-        margin-top: 4px;
-        border: 0;
-        border-radius: 8px;
-        padding: 11px 14px;
-        background: var(--primary);
-        color: #fff;
-        font: inherit;
-        font-weight: 600;
-        cursor: pointer;
-      }
-      button:hover { background: var(--primary-hover); }
-      .links {
-        margin-top: 16px;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-      }
-      .links a {
-        color: var(--primary);
-        text-decoration: none;
-        font-size: 14px;
-      }
-      .links a:hover { text-decoration: underline; }
-    </style>
+    <link rel="stylesheet" href="/public/css/main.css" />
+    <link rel="stylesheet" href="/public/css/auth.css" />
   </head>
   <body>
-    <main class="card">
-      <h1>${title}</h1>
-      <p>${subtitle}</p>
-      ${
-        message
-          ? `<p class="badge badge-${escapeHtml(messageType)}">${escapeHtml(message)}</p>`
-          : ""
-      }
-      ${form}
-      <div class="links">${links.join("")}</div>
-    </main>
+    <div class="site-shell">
+      <header class="site-header">
+        <div class="container nav-wrap">
+          <a class="brand" href="/gallery">
+            <span class="brand-logo-wrap">
+              <img src="/public/assets/camagru-logo.png" alt="Camagru Logo" class="logo" />
+            </span>
+          </a>
+          <input id="nav-toggle" class="nav-toggle" type="checkbox" />
+          <label class="nav-toggle-label" for="nav-toggle" aria-label="Toggle navigation">
+            <span></span><span></span><span></span>
+          </label>
+          <nav class="site-nav">{{NAV_AUTH}}</nav>
+        </div>
+      </header>
+
+      <main class="page-main auth-layout">
+        <section class="auth-card">
+          <h1>${title}</h1>
+          <p class="subtitle">${subtitle}</p>
+          ${
+            message
+              ? `<p class="message-banner ${escapeHtml(messageType)}">${escapeHtml(message)}</p>`
+              : ""
+          }
+          ${form}
+          <div class="auth-links">${links.join("")}</div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <p>Camagru © 2025</p>
+      </footer>
+    </div>
   </body>
 </html>
 `;
+
+  return template
+    .replace("{{CSRF_TOKEN}}", escapeHtml(csrf))
+    .replace("{{NAV_AUTH}}", loggedOutNav);
+};
 
 const registerHTML = (csrf, message = "", messageType = "error") =>
   authPageHTML({
     title: "Create Account",
     subtitle: "Sign up to start using Camagru.",
+    csrf,
     message,
     messageType,
     form: `
-      <form method="POST" action="/register">
+      <form class="auth-form" method="POST" action="/register">
         <input type="hidden" name="_csrf" value="${escapeHtml(csrf)}">
-        <input type="text" name="username" placeholder="Username" required>
-        <input type="email" name="email" placeholder="Email" required>
-        <input type="password" name="password" placeholder="Password" required>
-        <button type="submit">Register</button>
+        <label class="label" for="register-username">Username</label>
+        <input class="input" id="register-username" type="text" name="username" placeholder="Username" required>
+        <label class="label" for="register-email">Email</label>
+        <input class="input" id="register-email" type="email" name="email" placeholder="Email" required>
+        <label class="label" for="register-password">Password</label>
+        <input class="input" id="register-password" type="password" name="password" placeholder="Password" required>
+        <button class="btn" type="submit">Register</button>
       </form>
     `,
-    links: ['<a href="/login">Already have an account? Log in</a>'],
+    links: ['<a href="/login">Already have an account? Login</a>'],
   });
 
 const loginHTML = (csrf, message = "", messageType = "error") =>
   authPageHTML({
     title: "Welcome Back",
     subtitle: "Log in to continue.",
+    csrf,
     message,
     messageType,
     form: `
-      <form method="POST" action="/login">
+      <form class="auth-form" method="POST" action="/login">
         <input type="hidden" name="_csrf" value="${escapeHtml(csrf)}">
-        <input type="text" name="username" placeholder="Username" required>
-        <input type="password" name="password" placeholder="Password" required>
-        <button type="submit">Login</button>
+        <label class="label" for="login-username">Username</label>
+        <input class="input" id="login-username" type="text" name="username" placeholder="Username" required>
+        <label class="label" for="login-password">Password</label>
+        <input class="input" id="login-password" type="password" name="password" placeholder="Password" required>
+        <button class="btn" type="submit">Login</button>
       </form>
     `,
     links: [
       '<a href="/forgot-password">Forgot password?</a>',
-      '<a href="/register">Create account</a>',
+      '<a href="/register">Don\'t have an account? Register</a>',
     ],
   });
 
@@ -179,33 +123,37 @@ const forgotHTML = (csrf, message = "", messageType = "error") =>
   authPageHTML({
     title: "Reset Password",
     subtitle: "Enter your email to receive a reset link.",
+    csrf,
     message,
     messageType,
     form: `
-      <form method="POST" action="/forgot-password">
+      <form class="auth-form" method="POST" action="/forgot-password">
         <input type="hidden" name="_csrf" value="${escapeHtml(csrf)}">
-        <input type="email" name="email" placeholder="Your email" required>
-        <button type="submit">Send reset link</button>
+        <label class="label" for="forgot-email">Email</label>
+        <input class="input" id="forgot-email" type="email" name="email" placeholder="Your email" required>
+        <button class="btn" type="submit">Send reset link</button>
       </form>
     `,
-    links: ['<a href="/login">Back to login</a>'],
+    links: ['<a href="/login">Already have an account? Login</a>'],
   });
 
 const resetHTML = (csrf, token, message = "", messageType = "error") =>
   authPageHTML({
     title: "Choose New Password",
     subtitle: "Set a new password for your account.",
+    csrf,
     message,
     messageType,
     form: `
-      <form method="POST" action="/reset-password">
+      <form class="auth-form" method="POST" action="/reset-password">
         <input type="hidden" name="_csrf" value="${escapeHtml(csrf)}">
         <input type="hidden" name="token" value="${escapeHtml(token)}">
-        <input type="password" name="password" placeholder="New password" required>
-        <button type="submit">Reset password</button>
+        <label class="label" for="reset-password">New password</label>
+        <input class="input" id="reset-password" type="password" name="password" placeholder="New password" required>
+        <button class="btn" type="submit">Reset password</button>
       </form>
     `,
-    links: ['<a href="/login">Back to login</a>'],
+    links: ['<a href="/login">Already have an account? Login</a>'],
   });
 
 module.exports = {

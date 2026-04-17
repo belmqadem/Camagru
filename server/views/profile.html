@@ -2,274 +2,176 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="csrf-token" content="{{CSRF_TOKEN}}" />
     <title>Profile | Camagru</title>
-    <style>
-      :root {
-        --bg: #f3f5f7;
-        --card: #ffffff;
-        --line: #d9e2ec;
-        --text: #0f172a;
-        --muted: #475569;
-        --primary: #2563eb;
-        --primary-hover: #1d4ed8;
-        --ok-bg: #ecfdf3;
-        --ok-text: #166534;
-        --error-bg: #fef2f2;
-        --error-text: #b91c1c;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        margin: 0;
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-        color: var(--text);
-        background: radial-gradient(
-          circle at 20% 10%,
-          #e2e8f0 0%,
-          var(--bg) 45%
-        );
-      }
-
-      .page {
-        width: min(980px, calc(100% - 24px));
-        margin: 24px auto 40px;
-      }
-
-      .topbar {
-        background: var(--card);
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        padding: 14px 16px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 10px;
-      }
-
-      .topbar h1 {
-        margin: 0;
-        font-size: 24px;
-      }
-
-      .topbar a {
-        color: var(--primary);
-        text-decoration: none;
-      }
-
-      .topbar a:hover {
-        text-decoration: underline;
-      }
-
-      .status {
-        margin-top: 14px;
-        border-radius: 10px;
-        padding: 10px 12px;
-        border: 1px solid transparent;
-      }
-
-      .status.hidden {
-        display: none;
-      }
-
-      .status.success {
-        background: var(--ok-bg);
-        border-color: #bbf7d0;
-        color: var(--ok-text);
-      }
-
-      .status.error {
-        background: var(--error-bg);
-        border-color: #fecaca;
-        color: var(--error-text);
-      }
-
-      .grid {
-        margin-top: 14px;
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 14px;
-      }
-
-      .panel {
-        background: var(--card);
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        padding: 14px;
-      }
-
-      .panel h2 {
-        margin: 0;
-        font-size: 20px;
-      }
-
-      .panel p {
-        margin: 6px 0 0;
-        color: var(--muted);
-        font-size: 14px;
-      }
-
-      form {
-        margin-top: 12px;
-        display: grid;
-        gap: 10px;
-      }
-
-      label {
-        display: grid;
-        gap: 6px;
-        color: var(--muted);
-        font-size: 14px;
-      }
-
-      input[type="text"],
-      input[type="email"],
-      input[type="password"] {
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 10px;
-        font: inherit;
-        color: var(--text);
-        background: #fff;
-      }
-
-      .checkbox-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .checkbox-row label {
-        display: inline;
-        margin: 0;
-      }
-
-      .btn {
-        border: 0;
-        border-radius: 8px;
-        background: var(--primary);
-        color: #fff;
-        font: inherit;
-        padding: 10px 12px;
-        justify-self: start;
-      }
-
-      .btn:hover {
-        background: var(--primary-hover);
-      }
-    </style>
+    <link rel="stylesheet" href="/public/css/main.css" />
+    <link rel="stylesheet" href="/public/css/profile.css" />
   </head>
   <body>
-    <div class="page">
-      <header class="topbar">
-        <h1>Your Profile</h1>
-        <a href="/gallery">Back to gallery</a>
+    <div class="site-shell">
+      <header class="site-header">
+        <div class="container nav-wrap">
+          <a class="brand" href="/gallery">
+            <span class="brand-logo-wrap">
+              <img
+                src="/public/assets/camagru-logo.png"
+                alt="Camagru Logo"
+                class="logo"
+              />
+            </span>
+          </a>
+          <input id="nav-toggle" class="nav-toggle" type="checkbox" />
+          <label
+            class="nav-toggle-label"
+            for="nav-toggle"
+            aria-label="Toggle navigation"
+          >
+            Menu
+          </label>
+          <nav class="site-nav">{{NAV_AUTH}}</nav>
+        </div>
       </header>
 
-      <div class="{{STATUS_CLASS}}">{{STATUS_MESSAGE}}</div>
+      <main class="page-main">
+        <div class="container profile-layout">
+          <section class="profile-header">
+            <h1>Profile Settings</h1>
+            <p>
+              Manage your personal information, password, and notifications.
+            </p>
+          </section>
 
-      <main class="grid">
-        <section class="panel">
-          <h2>Account Information</h2>
-          <p>Update your username and email address.</p>
-          <form method="POST" action="/user/profile/info">
-            <input type="hidden" name="_csrf" value="{{CSRF_TOKEN}}" />
-
-            <label for="username">
-              Username
-              <input
-                id="username"
-                name="username"
-                type="text"
-                value="{{USERNAME_VALUE}}"
-                required
-              />
-            </label>
-
-            <label for="email">
-              Email
-              <input
-                id="email"
-                name="email"
-                type="email"
-                value="{{EMAIL_VALUE}}"
-                required
-              />
-            </label>
-
-            <button class="btn" type="submit">Save info</button>
-          </form>
-        </section>
-
-        <section class="panel">
-          <h2>Change Password</h2>
-          <p>
-            Use a strong password with at least 8 chars, 1 uppercase and 1
-            number.
-          </p>
-          <form method="POST" action="/user/profile/password">
-            <input type="hidden" name="_csrf" value="{{CSRF_TOKEN}}" />
-
-            <label for="currentPassword">
-              Current password
-              <input
-                id="currentPassword"
-                name="currentPassword"
-                type="password"
-                required
-              />
-            </label>
-
-            <label for="newPassword">
-              New password
-              <input
-                id="newPassword"
-                name="newPassword"
-                type="password"
-                required
-              />
-            </label>
-
-            <label for="confirmPassword">
-              Confirm new password
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                required
-              />
-            </label>
-
-            <button class="btn" type="submit">Update password</button>
-          </form>
-        </section>
-
-        <section class="panel">
-          <h2>Preferences</h2>
-          <p>Choose whether you want email notifications for new comments.</p>
-          <form method="POST" action="/user/profile/preferences">
-            <input type="hidden" name="_csrf" value="{{CSRF_TOKEN}}" />
-
-            <div class="checkbox-row">
-              <input
-                id="notify_comments"
-                name="notify_comments"
-                type="checkbox"
-                {{NOTIFY_COMMENTS_CHECKED}}
-              />
-              <label for="notify_comments"
-                >Send email notifications when someone comments on my
-                images</label
+          <section class="settings-grid">
+            <article class="settings-card">
+              <h2>Update Username and Email</h2>
+              <p>
+                Keep your account identity and contact information up to date.
+              </p>
+              <div class="{{INFO_STATUS_CLASS}}">{{INFO_STATUS_MESSAGE}}</div>
+              <form
+                class="settings-form"
+                method="POST"
+                action="/user/profile/info"
               >
-            </div>
+                <input type="hidden" name="_csrf" value="{{CSRF_TOKEN}}" />
 
-            <button class="btn" type="submit">Save preferences</button>
-          </form>
-        </section>
+                <label class="label" for="username">
+                  Username
+                  <input
+                    class="input"
+                    id="username"
+                    name="username"
+                    type="text"
+                    value="{{USERNAME_VALUE}}"
+                    required
+                  />
+                </label>
+
+                <label class="label" for="email">
+                  Email
+                  <input
+                    class="input"
+                    id="email"
+                    name="email"
+                    type="email"
+                    value="{{EMAIL_VALUE}}"
+                    required
+                  />
+                </label>
+
+                <button class="btn" type="submit">Save info</button>
+              </form>
+            </article>
+
+            <article class="settings-card">
+              <h2>Change Password</h2>
+              <p>
+                Use at least 8 characters, 1 uppercase letter, and 1 number.
+              </p>
+              <div class="{{PASSWORD_STATUS_CLASS}}">
+                {{PASSWORD_STATUS_MESSAGE}}
+              </div>
+              <form
+                class="settings-form"
+                method="POST"
+                action="/user/profile/password"
+              >
+                <input type="hidden" name="_csrf" value="{{CSRF_TOKEN}}" />
+
+                <label class="label" for="currentPassword">
+                  Current password
+                  <input
+                    class="input"
+                    id="currentPassword"
+                    name="currentPassword"
+                    type="password"
+                    required
+                  />
+                </label>
+
+                <label class="label" for="newPassword">
+                  New password
+                  <input
+                    class="input"
+                    id="newPassword"
+                    name="newPassword"
+                    type="password"
+                    required
+                  />
+                </label>
+
+                <label class="label" for="confirmPassword">
+                  Confirm new password
+                  <input
+                    class="input"
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    required
+                  />
+                </label>
+
+                <button class="btn" type="submit">Update password</button>
+              </form>
+            </article>
+
+            <article class="settings-card">
+              <h2>Notification Preferences</h2>
+              <p>Choose whether to receive email alerts for new comments.</p>
+              <div class="{{PREFERENCES_STATUS_CLASS}}">
+                {{PREFERENCES_STATUS_MESSAGE}}
+              </div>
+              <form
+                class="settings-form"
+                method="POST"
+                action="/user/profile/preferences"
+              >
+                <input type="hidden" name="_csrf" value="{{CSRF_TOKEN}}" />
+
+                <div class="checkbox-row">
+                  <input
+                    id="notify_comments"
+                    name="notify_comments"
+                    type="checkbox"
+                    {{NOTIFY_COMMENTS_CHECKED}}
+                  />
+                  <label for="notify_comments"
+                    >Send email notifications when someone comments on my
+                    images</label
+                  >
+                </div>
+
+                <button class="btn" type="submit">Save preferences</button>
+              </form>
+            </article>
+          </section>
+        </div>
       </main>
+
+      <footer class="site-footer">
+        <p>Camagru © 2025</p>
+      </footer>
     </div>
   </body>
 </html>

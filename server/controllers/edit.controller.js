@@ -31,6 +31,30 @@ const formatDate = (value) => {
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
 };
 
+const renderNavAuth = ({ user, csrfToken }) => {
+  if (!user) {
+    return [
+      '<a class="nav-link" href="/login">Login</a>',
+      '<a class="nav-link" href="/register">Register</a>',
+    ].join("");
+  }
+
+  return `
+    <a class="nav-link nav-camera" href="/edit" aria-label="Open editor">📷</a>
+    <span class="nav-user">${escapeHtml(user.username || "User")}</span>
+    <details class="profile-menu">
+      <summary class="avatar-button" aria-label="Profile menu">👤</summary>
+      <div class="dropdown">
+        <a class="dropdown-link" href="/user/profile">Profile</a>
+        <form method="POST" action="/logout">
+          <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
+          <button type="submit" class="dropdown-logout">Logout</button>
+        </form>
+      </div>
+    </details>
+  `;
+};
+
 const parseOverlayPlacement = (body, imageWidth, imageHeight) => {
   const parseRatio = (raw) => {
     if (raw === undefined || raw === null || raw === "") {
@@ -116,7 +140,9 @@ const renderEditHtml = ({ overlays, userImages, csrfToken, user }) => {
 						<img src="/public/uploads/${encodeURIComponent(image.filename)}" alt="${escapeHtml(image.filename)}">
 						<div class="user-image-meta">
 							<span>${escapeHtml(formatDate(image.created_at))}</span>
-							<button type="button" class="delete-image-btn" data-image-id="${image.id}">Delete</button>
+                <div class="image-card-actions">
+                  <button type="button" class="delete-image-btn" data-image-id="${image.id}">Delete</button>
+                </div>
 						</div>
 					</article>
 				`,
@@ -127,6 +153,7 @@ const renderEditHtml = ({ overlays, userImages, csrfToken, user }) => {
   return editTemplate
     .replace(/{{CSRF_TOKEN}}/g, escapeHtml(csrfToken))
     .replace(/{{USERNAME}}/g, escapeHtml(user?.username || "User"))
+    .replace("{{NAV_AUTH}}", renderNavAuth({ user, csrfToken }))
     .replace("{{OVERLAY_ITEMS}}", overlaysMarkup)
     .replace("{{USER_IMAGES}}", imagesMarkup);
 };

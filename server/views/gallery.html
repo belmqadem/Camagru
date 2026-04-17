@@ -2,189 +2,62 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="csrf-token" content="{{CSRF_TOKEN}}" />
     <title>Gallery | Camagru</title>
-    <style>
-      :root {
-        --bg: #f3f6fb;
-        --surface: #ffffff;
-        --text: #0f172a;
-        --muted: #475569;
-        --line: #d9e2ec;
-        --accent: #2563eb;
-        --accent-hover: #1d4ed8;
-      }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-        color: var(--text);
-        background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 35%);
-      }
-      .container {
-        width: min(920px, 100% - 24px);
-        margin: 24px auto 40px;
-      }
-      .topbar {
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        padding: 14px 16px;
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-        align-items: center;
-      }
-      .topbar h1 {
-        margin: 0;
-        font-size: 24px;
-      }
-      .topbar a {
-        color: var(--accent);
-        text-decoration: none;
-      }
-      .topbar a:hover {
-        text-decoration: underline;
-      }
-      .auth-hint {
-        margin: 14px 0 0;
-        background: #eff6ff;
-        border: 1px solid #bfdbfe;
-        color: #1e3a8a;
-        border-radius: 10px;
-        padding: 10px 12px;
-      }
-      .page-info {
-        margin: 14px 0;
-        color: var(--muted);
-        font-size: 14px;
-      }
-      .gallery {
-        display: grid;
-        gap: 14px;
-      }
-      .image-card {
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        padding: 14px;
-      }
-      .image-header {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        align-items: center;
-        margin-bottom: 10px;
-      }
-      .filename {
-        color: var(--muted);
-        font-size: 14px;
-      }
-      .image-card img {
-        width: 100%;
-        border-radius: 10px;
-        border: 1px solid var(--line);
-        background: #f8fafc;
-        display: block;
-      }
-      .meta {
-        margin-top: 10px;
-        display: flex;
-        gap: 16px;
-        color: var(--muted);
-        font-size: 14px;
-      }
-      form {
-        margin-top: 10px;
-      }
-      .like-form {
-        display: inline-block;
-        margin-right: 8px;
-      }
-      .comment-form {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-      }
-      .comment-form input[type="text"] {
-        flex: 1;
-        min-width: 0;
-      }
-      input[type="text"],
-      button {
-        font: inherit;
-      }
-      input[type="text"] {
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 9px 10px;
-      }
-      button {
-        border: 0;
-        border-radius: 8px;
-        background: var(--accent);
-        color: white;
-        padding: 9px 12px;
-        cursor: pointer;
-      }
-      button:hover {
-        background: var(--accent-hover);
-      }
-      .interaction-hint {
-        margin-top: 10px;
-        color: var(--muted);
-      }
-      .comments {
-        list-style: none;
-        margin: 12px 0 0;
-        padding: 0;
-        display: grid;
-        gap: 8px;
-      }
-      .comments li {
-        border-top: 1px dashed var(--line);
-        padding-top: 8px;
-      }
-      .comment-author {
-        font-weight: 600;
-        margin-right: 6px;
-      }
-      .comment-content {
-        color: var(--muted);
-      }
-      .comment-empty {
-        color: var(--muted);
-      }
-      .empty {
-        margin: 0;
-        color: var(--muted);
-      }
-      .pager {
-        margin-top: 16px;
-        display: flex;
-        justify-content: space-between;
-      }
-      .pager-link {
-        text-decoration: none;
-        color: var(--accent);
-      }
-      .pager-link.disabled {
-        color: #94a3b8;
-      }
-    </style>
+    <link rel="stylesheet" href="/public/css/main.css" />
+    <link rel="stylesheet" href="/public/css/gallery.css" />
   </head>
   <body>
-    <div class="container">
-      <header class="topbar">
-        <h1>Gallery</h1>
-        <a href="/login">Account</a>
+    <div class="site-shell">
+      <header class="site-header">
+        <div class="container nav-wrap">
+          <a class="brand" href="/gallery">
+            <span class="brand-logo-wrap">
+              <img
+                src="/public/assets/camagru-logo.png"
+                alt="Camagru Logo"
+                class="logo"
+              />
+            </span>
+          </a>
+          <input id="nav-toggle" class="nav-toggle" type="checkbox" />
+          <label
+            class="nav-toggle-label"
+            for="nav-toggle"
+            aria-label="Toggle navigation"
+          >
+            Menu
+          </label>
+          <nav class="site-nav">{{NAV_AUTH}}</nav>
+        </div>
       </header>
-      {{AUTH_HINT}}
-      <p class="page-info">{{PAGE_INFO}}</p>
-      <section class="gallery">{{IMAGES}}</section>
-      <nav class="pager">{{PREV_LINK}} {{NEXT_LINK}}</nav>
+
+      <main class="page-main">
+        <div class="container">
+          <section class="hero">
+            <h1>Capture. Overlay. Share.</h1>
+            <p>
+              Create expressive photos with overlays and share them with the
+              Camagru community in one streamlined workflow.
+            </p>
+          </section>
+
+          {{AUTH_HINT}}
+
+          <section class="gallery-head">
+            <p>{{PAGE_INFO}}</p>
+          </section>
+
+          <section class="gallery-grid">{{IMAGES}}</section>
+
+          <nav class="pagination">{{PREV_LINK}} {{NEXT_LINK}}</nav>
+        </div>
+      </main>
+
+      <footer class="site-footer">
+        <p>Camagru © 2025</p>
+      </footer>
     </div>
   </body>
 </html>
