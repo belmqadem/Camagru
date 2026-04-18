@@ -21,6 +21,15 @@ const likeModel = {
     ]);
     return { liked: true };
   },
+
+  countByImageId: async (imageId) => {
+    const result = await pool.query(
+      "SELECT COUNT(*)::int AS total FROM likes WHERE image_id = $1",
+      [imageId],
+    );
+
+    return result.rows[0]?.total || 0;
+  },
 };
 
 module.exports = likeModel;

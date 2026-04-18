@@ -1,3 +1,7 @@
+:root {
+  --color-error: #9f2230;
+}
+
 .hero {
   border-radius: 14px;
   padding: clamp(1.25rem, 4vw, 2.8rem);
@@ -20,7 +24,7 @@
   margin-top: 1rem;
   border: 1px solid #f1c7cc;
   background: #fff5f6;
-  color: #9f2230;
+  color: var(--color-error);
   border-radius: var(--radius);
   padding: 0.72rem 0.82rem;
 }
@@ -116,6 +120,12 @@
 .comment-form input[type="text"] {
   flex: 1;
   min-width: 0;
+}
+
+.form-error {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  color: var(--color-error);
 }
 
 .interaction-hint {
