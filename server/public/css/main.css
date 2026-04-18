@@ -115,14 +115,6 @@ img {
   display: block;
 }
 
-.nav-toggle {
-  display: none;
-}
-
-.nav-toggle-label {
-  display: none !important;
-}
-
 .site-nav {
   margin-left: auto;
   display: flex;
@@ -338,7 +330,6 @@ main {
   cursor: not-allowed;
 }
 
-.field,
 .input,
 textarea {
   width: 100%;
@@ -350,7 +341,6 @@ textarea {
   background: #fff;
 }
 
-.field::placeholder,
 .input::placeholder,
 textarea::placeholder {
   color: var(--color-text-muted);
