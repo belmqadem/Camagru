@@ -235,6 +235,40 @@
     statusMessage.classList.toggle("error", isError);
   };
 
+  const parseHttpErrorMessage = async (response, fallbackMessage) => {
+    if (response.status === 413) {
+      return "Image is too large. Please use an image up to 5MB.";
+    }
+
+    const raw = await response.text().catch(() => "");
+    const trimmed = String(raw || "").trim();
+
+    if (!trimmed) {
+      return fallbackMessage;
+    }
+
+    try {
+      const payload = JSON.parse(trimmed);
+      if (payload && typeof payload === "object") {
+        if (typeof payload.error === "string" && payload.error.trim()) {
+          return payload.error;
+        }
+
+        if (typeof payload.message === "string" && payload.message.trim()) {
+          return payload.message;
+        }
+      }
+    } catch (_error) {
+      // Ignore JSON parsing errors and use text fallback.
+    }
+
+    if (trimmed.startsWith("<")) {
+      return fallbackMessage;
+    }
+
+    return trimmed;
+  };
+
   const updateCaptureButtonState = () => {
     captureButton.disabled = !getPlacementForCapture();
   };
@@ -617,8 +651,9 @@
       });
 
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || "Capture failed");
+        throw new Error(
+          await parseHttpErrorMessage(response, "Capture failed"),
+        );
       }
 
       const data = await response.json();
@@ -687,8 +722,7 @@
       });
 
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || "Delete failed");
+        throw new Error(await parseHttpErrorMessage(response, "Delete failed"));
       }
 
       const payload = await response.json();
