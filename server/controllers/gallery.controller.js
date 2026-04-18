@@ -9,6 +9,14 @@ const logger = require("../core/logger");
 
 const PAGE_SIZE = 5;
 const MAX_COMMENT_LENGTH = 500;
+const AVATAR_COLORS = [
+  "#ef476f",
+  "#f78c6b",
+  "#06d6a0",
+  "#118ab2",
+  "#8338ec",
+  "#ffb703",
+];
 const galleryTemplate = fs.readFileSync(
   path.join(__dirname, "../views/gallery.html"),
   "utf8",
@@ -26,9 +34,81 @@ const parsePage = (value) => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 };
 
+const normalizePath = (value) => {
+  const raw = String(value || "/")
+    .split("?")[0]
+    .replace(/\/+$/, "");
+  return raw || "/";
+};
+
+const formatPostDate = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Recently";
+  }
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const toIsoDate = (value) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+};
+
+const hashUsername = (username) => {
+  const raw = String(username || "U");
+  let hash = 0;
+
+  for (let index = 0; index < raw.length; index += 1) {
+    hash = (hash * 31 + raw.charCodeAt(index)) % AVATAR_COLORS.length;
+  }
+
+  return Math.abs(hash);
+};
+
+const getAvatarColor = (username) => AVATAR_COLORS[hashUsername(username)];
+
+const getAvatarInitial = (username) => {
+  const raw = String(username || "U").trim();
+  return raw ? raw.charAt(0).toUpperCase() : "U";
+};
+
+const renderHeartIcon = (liked) => {
+  if (liked) {
+    return '<i class="fa-solid fa-heart liked-heart" aria-hidden="true"></i>';
+  }
+
+  return '<i class="fa-regular fa-heart" aria-hidden="true"></i>';
+};
+
+const renderCommentIcon = () =>
+  '<i class="fa-regular fa-comment" aria-hidden="true"></i>';
+
+const renderShareButtons = (imageId) => `
+  <div class="share-row" data-image-id="${imageId}">
+    <button class="share-btn share-btn-x" type="button" data-share-target="x" data-image-id="${imageId}" aria-label="Share on X">
+      <i class="fa-brands fa-x-twitter" aria-hidden="true"></i>
+      <span class="sr-only">Share on X</span>
+    </button>
+    <button class="share-btn share-btn-facebook" type="button" data-share-target="facebook" data-image-id="${imageId}" aria-label="Share on Facebook">
+      <i class="fa-brands fa-facebook-f" aria-hidden="true"></i>
+      <span class="sr-only">Share on Facebook</span>
+    </button>
+    <button class="share-btn share-btn-whatsapp" type="button" data-share-target="whatsapp" data-image-id="${imageId}" aria-label="Share on WhatsApp">
+      <i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
+      <span class="sr-only">Share on WhatsApp</span>
+    </button>
+  </div>
+`;
+
 const serializeImageForJson = (image) => ({
   id: image.id,
   filename: image.filename,
+  created_at: image.created_at,
   author_username: image.author_username,
   like_count: Number(image.like_count) || 0,
   comment_count: Number(image.comment_count) || 0,
@@ -59,24 +139,38 @@ const sendError = (req, res, status, message) => {
   return res.status(status).send(message);
 };
 
-const renderNavAuth = ({ currentUser, csrfToken }) => {
+const renderNavAuth = ({ currentUser, csrfToken, currentPath }) => {
+  const safePath = normalizePath(currentPath);
+  const isActive = (path) => safePath === normalizePath(path);
+
   if (!currentUser) {
     return [
-      '<a class="nav-link" href="/login">Login</a>',
-      '<a class="nav-link" href="/register">Register</a>',
+      `<a class="nav-link nav-login-link ${isActive("/login") ? "active" : ""}" href="/login">Login</a>`,
+      `<a class="nav-link nav-register-btn ${isActive("/register") ? "active" : ""}" href="/register">Register</a>`,
     ].join("");
   }
 
+  const username = escapeHtml(currentUser.username || "User");
+
   return `
-    <a class="nav-link nav-camera" href="/edit" aria-label="Open editor">📷</a>
-    <span class="nav-user">${escapeHtml(currentUser.username || "User")}</span>
+    <a class="nav-link nav-icon-link nav-camera ${isActive("/edit") ? "active" : ""}" href="/edit" aria-label="Open editor">
+      <i class="fa-solid fa-camera" aria-hidden="true"></i>
+    </a>
     <details class="profile-menu">
-      <summary class="avatar-button" aria-label="Profile menu">👤</summary>
-      <div class="dropdown">
-        <a class="dropdown-link" href="/user/profile">Profile</a>
-        <form method="POST" action="/logout">
+      <summary class="nav-link nav-icon-link nav-profile-toggle ${isActive("/user/profile") ? "active" : ""}" aria-label="Open profile menu">
+        <i class="fa-solid fa-user" aria-hidden="true"></i>
+      </summary>
+      <div class="profile-dropdown">
+        <a class="profile-dropdown-link" href="/user/profile" title="${username}">
+          <i class="fa-solid fa-user" aria-hidden="true"></i>
+          <span class="profile-dropdown-username">${username}</span>
+        </a>
+        <form class="profile-dropdown-form" method="POST" action="/logout">
           <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-          <button type="submit" class="dropdown-logout">Logout</button>
+          <button type="submit" class="profile-dropdown-logout">
+            <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
+            <span>Logout</span>
+          </button>
         </form>
       </div>
     </details>
@@ -89,67 +183,91 @@ const renderGalleryHTML = ({
   totalPages,
   csrfToken,
   currentUser,
+  currentPath,
 }) => {
   const imageCards = images
     .map((image) => {
-      const commentsMarkup = image.comments.length
-        ? image.comments
+      const totalLikeCount = Number(image.like_count) || 0;
+      const totalCommentCount = Number(image.comment_count) || 0;
+      const previewComments = image.comments.slice(-2);
+      const commentsMarkup = previewComments.length
+        ? previewComments
             .map(
               (comment) => `
-							<li>
-								<span class="comment-author">${escapeHtml(comment.author_username)}</span>
-								<span class="comment-content">${escapeHtml(comment.content)}</span>
-							</li>`,
+                <li class="comment-item">
+                  <span class="comment-author">${escapeHtml(comment.author_username)}</span>
+                  <span class="comment-content">${escapeHtml(comment.content)}</span>
+                </li>`,
             )
             .join("")
         : '<li class="comment-empty">No comments yet.</li>';
 
-      const interactionMarkup = currentUser
+      const commentInputMarkup = currentUser
         ? `
-          <div class="interaction-row">
-            <form class="like-form" method="POST" action="/gallery/${image.id}/like" data-image-id="${image.id}">
-              <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-              <input type="hidden" name="page" value="${currentPage}">
-              <button class="btn" type="submit">${image.viewer_liked ? "Unlike" : "Like"}</button>
-            </form>
-            <p class="form-error" hidden aria-live="polite"></p>
-            <form class="comment-form" method="POST" action="/gallery/${image.id}/comment" data-image-id="${image.id}">
-              <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-              <input type="hidden" name="page" value="${currentPage}">
-              <input class="input" type="text" name="content" maxlength="${MAX_COMMENT_LENGTH}" placeholder="Add a comment" required>
-              <button class="btn" type="submit">Comment</button>
-            </form>
-            <p class="form-error" hidden aria-live="polite"></p>
-          </div>
-				`
-        : '<p class="interaction-hint"><a href="/login">Log in</a> to interact.</p>';
+          <form class="comment-form inline-comment-form" method="POST" action="/gallery/${image.id}/comment" data-image-id="${image.id}">
+            <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
+            <input type="hidden" name="page" value="${currentPage}">
+            <input class="input" type="text" name="content" maxlength="${MAX_COMMENT_LENGTH}" placeholder="Add a comment..." required>
+            <button class="post-comment-btn" type="submit">Post</button>
+          </form>
+          <p class="form-error" hidden aria-live="polite"></p>
+        `
+        : '<p class="interaction-hint"><a href="/login">Log in</a> to comment.</p>';
+
+      const avatarColor = getAvatarColor(image.author_username);
+      const avatarInitial = getAvatarInitial(image.author_username);
+      const postDate = formatPostDate(image.created_at);
+      const postDateIso = toIsoDate(image.created_at);
 
       return `
-				<article class="image-card" id="image-${image.id}" data-image-id="${image.id}">
-          <details class="image-disclosure">
-            <summary>
-              <div class="card-preview">
-                <img src="/public/uploads/${encodeURIComponent(image.filename)}" alt="${escapeHtml(image.filename)}">
-                <div class="card-meta">
-                  <span class="card-author">${escapeHtml(image.author_username)}</span>
-                  <span class="meta-stats"><span class="like-count">${image.like_count}</span> likes · <span class="comment-count">${image.comment_count}</span> comments</span>
-                </div>
-              </div>
-            </summary>
-            <div class="card-expanded">
-              ${interactionMarkup}
-              <ul class="comments">${commentsMarkup}</ul>
+        <article class="image-card" id="image-${image.id}" data-image-id="${image.id}">
+          <header class="post-header">
+            <span class="author-avatar" style="background:${escapeHtml(avatarColor)}">${escapeHtml(avatarInitial)}</span>
+            <div class="post-author-meta">
+              <span class="post-username">${escapeHtml(image.author_username)}</span>
+              <time class="post-date" datetime="${escapeHtml(postDateIso)}">${escapeHtml(postDate)}</time>
             </div>
-          </details>
-				</article>
-			`;
+          </header>
+
+          <div class="post-media">
+            <img class="post-image" src="/public/uploads/${encodeURIComponent(image.filename)}" alt="${escapeHtml(image.filename)}">
+          </div>
+
+          <div class="post-body">
+            <div class="action-bar">
+              <div class="action-left">
+                <form class="like-form" method="POST" action="/gallery/${image.id}/like" data-image-id="${image.id}">
+                  <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
+                  <input type="hidden" name="page" value="${currentPage}">
+                  <button class="icon-btn like-toggle ${image.viewer_liked ? "liked" : ""}" type="submit" aria-label="${image.viewer_liked ? "Unlike" : "Like"}">${renderHeartIcon(Boolean(image.viewer_liked))}</button>
+                </form>
+                <p class="form-error" hidden aria-live="polite"></p>
+                <span class="action-count like-count">${totalLikeCount}</span>
+                <button class="icon-btn comment-jump" type="button" data-image-id="${image.id}" aria-label="Open comments">${renderCommentIcon()}</button>
+                <span class="action-count comment-count">${totalCommentCount}</span>
+              </div>
+              <div class="action-right">${renderShareButtons(image.id)}</div>
+            </div>
+
+
+            <div class="comments-block">
+              <ul class="comments" data-expanded="false">${commentsMarkup}</ul>
+              ${totalCommentCount > 2 ? `<button class="view-all-comments" type="button" data-image-id="${image.id}" data-total-comments="${totalCommentCount}">View all ${totalCommentCount} comments</button>` : ""}
+            </div>
+
+            ${commentInputMarkup}
+          </div>
+        </article>
+      `;
     })
     .join("");
 
   return galleryTemplate
     .replace("{{CSRF_TOKEN}}", escapeHtml(csrfToken))
-    .replace("{{NAV_AUTH}}", renderNavAuth({ currentUser, csrfToken }))
-    .replace("{{PAGE_INFO}}", `Page ${currentPage} of ${totalPages}`)
+    .replace(
+      "{{NAV_AUTH}}",
+      renderNavAuth({ currentUser, csrfToken, currentPath }),
+    )
     .replace("{{CURRENT_PAGE}}", String(currentPage))
     .replace("{{TOTAL_PAGES}}", String(totalPages))
     .replace("{{CAN_INTERACT}}", currentUser ? "true" : "false")
@@ -207,7 +325,30 @@ exports.getGallery = async (req, res) => {
       totalPages,
       csrfToken: generate(req),
       currentUser: req.session.user || null,
+      currentPath: normalizePath(req.baseUrl),
     }),
+  );
+};
+
+exports.getImageComments = async (req, res) => {
+  const imageId = Number.parseInt(req.params.id, 10);
+
+  if (!Number.isInteger(imageId) || imageId <= 0) {
+    return res.status(400).json({ error: "Invalid image id" });
+  }
+
+  const image = await imageModel.findByIdWithAuthor(imageId);
+  if (!image) {
+    return res.status(404).json({ error: "Image not found" });
+  }
+
+  const comments = await imageModel.findCommentsByImageIds([imageId]);
+  return res.json(
+    comments.map((comment) => ({
+      author_username: comment.author_username,
+      content: comment.content,
+      created_at: comment.created_at,
+    })),
   );
 };
 

@@ -28,6 +28,13 @@ const normalizeEmail = (value) =>
     .trim()
     .toLowerCase();
 
+const normalizePath = (value) => {
+  const raw = String(value || "/")
+    .split("?")[0]
+    .replace(/\/+$/, "");
+  return raw || "/";
+};
+
 const getStatusMessage = (query = {}) => {
   if (query.info === "success") {
     return {
@@ -96,31 +103,51 @@ const getStatusMessage = (query = {}) => {
   };
 };
 
-const renderNavAuth = ({ sessionUser, csrfToken }) => {
+const renderNavAuth = ({ sessionUser, csrfToken, currentPath }) => {
+  const safePath = normalizePath(currentPath);
+  const isActive = (path) => safePath === normalizePath(path);
+
   if (!sessionUser) {
     return [
-      '<a class="nav-link" href="/login">Login</a>',
-      '<a class="nav-link" href="/register">Register</a>',
+      `<a class="nav-link nav-login-link ${isActive("/login") ? "active" : ""}" href="/login">Login</a>`,
+      `<a class="nav-link nav-register-btn ${isActive("/register") ? "active" : ""}" href="/register">Register</a>`,
     ].join("");
   }
 
+  const username = escapeHtml(sessionUser.username || "User");
+
   return `
-    <a class="nav-link nav-camera" href="/edit" aria-label="Open editor">📷</a>
-    <span class="nav-user">${escapeHtml(sessionUser.username || "User")}</span>
+    <a class="nav-link nav-icon-link nav-camera ${isActive("/edit") ? "active" : ""}" href="/edit" aria-label="Open editor">
+      <i class="fa-solid fa-camera" aria-hidden="true"></i>
+    </a>
     <details class="profile-menu">
-      <summary class="avatar-button" aria-label="Profile menu">👤</summary>
-      <div class="dropdown">
-        <a class="dropdown-link" href="/user/profile">Profile</a>
-        <form method="POST" action="/logout">
+      <summary class="nav-link nav-icon-link nav-profile-toggle ${isActive("/user/profile") ? "active" : ""}" aria-label="Open profile menu">
+        <i class="fa-solid fa-user" aria-hidden="true"></i>
+      </summary>
+      <div class="profile-dropdown">
+        <a class="profile-dropdown-link" href="/user/profile" title="${username}">
+          <i class="fa-solid fa-user" aria-hidden="true"></i>
+          <span class="profile-dropdown-username">${username}</span>
+        </a>
+        <form class="profile-dropdown-form" method="POST" action="/logout">
           <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-          <button type="submit" class="dropdown-logout">Logout</button>
+          <button type="submit" class="profile-dropdown-logout">
+            <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
+            <span>Logout</span>
+          </button>
         </form>
       </div>
     </details>
   `;
 };
 
-const renderProfilePage = ({ user, sessionUser, csrfToken, message }) => {
+const renderProfilePage = ({
+  user,
+  sessionUser,
+  csrfToken,
+  message,
+  currentPath,
+}) => {
   const checkedAttribute = user.notify_comments ? "checked" : "";
 
   const buildStatusClass = (target) => {
@@ -135,7 +162,10 @@ const renderProfilePage = ({ user, sessionUser, csrfToken, message }) => {
 
   return profileTemplate
     .replace(/{{CSRF_TOKEN}}/g, escapeHtml(csrfToken))
-    .replace("{{NAV_AUTH}}", renderNavAuth({ sessionUser, csrfToken }))
+    .replace(
+      "{{NAV_AUTH}}",
+      renderNavAuth({ sessionUser, csrfToken, currentPath }),
+    )
     .replace(/{{USERNAME_VALUE}}/g, escapeHtml(user.username || ""))
     .replace(/{{EMAIL_VALUE}}/g, escapeHtml(user.email || ""))
     .replace(/{{NOTIFY_COMMENTS_CHECKED}}/g, checkedAttribute)
@@ -165,6 +195,7 @@ exports.getProfile = async (req, res) => {
       sessionUser: req.session.user,
       csrfToken: generate(req),
       message: getStatusMessage(req.query || {}),
+      currentPath: normalizePath(`${req.baseUrl}${req.path}`),
     }),
   );
 };

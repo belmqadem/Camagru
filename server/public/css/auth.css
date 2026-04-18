@@ -56,7 +56,9 @@
 
 .auth-links {
   margin-top: 1rem;
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 0.42rem;
 }
 

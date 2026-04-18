@@ -6,6 +6,7 @@
     <meta name="csrf-token" content="{{CSRF_TOKEN}}" />
     <meta name="app-url" content="http://localhost:8080" />
     <title>Gallery | Camagru</title>
+    <link rel="stylesheet" href="/public/assets/fontawesome/css/all.min.css" />
     <link rel="stylesheet" href="/public/css/main.css" />
     <link rel="stylesheet" href="/public/css/gallery.css" />
   </head>
@@ -22,37 +23,17 @@
               />
             </span>
           </a>
-          <input id="nav-toggle" class="nav-toggle" type="checkbox" />
-          <label
-            class="nav-toggle-label"
-            for="nav-toggle"
-            aria-label="Toggle navigation"
-          >
-            Menu
-          </label>
           <nav class="site-nav">{{NAV_AUTH}}</nav>
         </div>
       </header>
 
       <main class="page-main">
-        <div class="container">
-          <section class="hero">
-            <h1>Capture. Overlay. Share.</h1>
-            <p>
-              Create expressive photos with overlays and share them with the
-              Camagru community in one streamlined workflow.
-            </p>
-          </section>
-
+        <div class="container feed-shell">
           {{AUTH_HINT}}
-
-          <section class="gallery-head">
-            <p>{{PAGE_INFO}}</p>
-          </section>
 
           <section
             id="galleryGrid"
-            class="gallery-grid"
+            class="gallery-feed"
             data-current-page="{{CURRENT_PAGE}}"
             data-total-pages="{{TOTAL_PAGES}}"
             data-can-interact="{{CAN_INTERACT}}"
@@ -73,24 +54,30 @@
                 type="button"
                 data-share-target="x"
                 data-image-id="{{IMAGE_ID}}"
+                aria-label="Share on X"
               >
-                Share on X
+                <i class="fa-brands fa-x-twitter" aria-hidden="true"></i>
+                <span class="sr-only">Share on X</span>
               </button>
               <button
                 class="share-btn share-btn-facebook"
                 type="button"
                 data-share-target="facebook"
                 data-image-id="{{IMAGE_ID}}"
+                aria-label="Share on Facebook"
               >
-                Share on Facebook
+                <i class="fa-brands fa-facebook-f" aria-hidden="true"></i>
+                <span class="sr-only">Share on Facebook</span>
               </button>
               <button
                 class="share-btn share-btn-whatsapp"
                 type="button"
                 data-share-target="whatsapp"
                 data-image-id="{{IMAGE_ID}}"
+                aria-label="Share on WhatsApp"
               >
-                Share on WhatsApp
+                <i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
+                <span class="sr-only">Share on WhatsApp</span>
               </button>
             </div>
           </template>
