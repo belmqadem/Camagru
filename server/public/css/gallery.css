@@ -138,6 +138,49 @@
   text-decoration: underline;
 }
 
+.share-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.share-btn {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--color-text);
+  padding: 0.44rem 0.68rem;
+  font: inherit;
+  font-size: 0.86rem;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    border-color 0.14s ease,
+    transform 0.14s ease;
+}
+
+.share-btn:hover {
+  border-color: #c6ccd2;
+  transform: translateY(-1px);
+}
+
+.share-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.share-btn-x {
+  border-color: #1c1f24;
+}
+
+.share-btn-facebook {
+  border-color: #1877f2;
+}
+
+.share-btn-whatsapp {
+  border-color: #25d366;
+}
+
 .comments {
   list-style: none;
   margin: 0;
