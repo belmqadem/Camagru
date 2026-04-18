@@ -1,6 +1,43 @@
 (() => {
   const csrfToken =
     document.querySelector('meta[name="csrf-token"]')?.content || "";
+  const appUrlMeta = document.querySelector('meta[name="app-url"]')?.content;
+
+  const isLocalHostName = (hostName) =>
+    hostName === "localhost" || hostName === "127.0.0.1";
+
+  const getNormalizedShareBaseUrl = (rawBaseUrl) => {
+    const fallbackOrigin = window.location.origin;
+    const candidate =
+      typeof rawBaseUrl === "string" && rawBaseUrl.trim()
+        ? rawBaseUrl.trim()
+        : fallbackOrigin;
+
+    try {
+      const parsed = new URL(candidate, fallbackOrigin);
+      if (parsed.protocol === "https:" && isLocalHostName(parsed.hostname)) {
+        parsed.protocol = "http:";
+      }
+
+      return `${parsed.protocol}//${parsed.host}`.replace(/\/+$/, "");
+    } catch (_error) {
+      const fallback = new URL(fallbackOrigin);
+      if (
+        fallback.protocol === "https:" &&
+        isLocalHostName(fallback.hostname)
+      ) {
+        fallback.protocol = "http:";
+      }
+
+      return `${fallback.protocol}//${fallback.host}`;
+    }
+  };
+
+  const normalizedAppUrl = getNormalizedShareBaseUrl(appUrlMeta);
+  const shareText = "Check out this photo on Camagru!";
+  const shareButtonsTemplate = document.getElementById(
+    "share-buttons-template",
+  );
 
   const galleryGrid = document.getElementById("galleryGrid");
   const scrollSentinel = document.getElementById("scroll-sentinel");
@@ -81,6 +118,79 @@
     }
 
     return raw || "Request failed";
+  };
+
+  const getCanonicalImageUrl = (imageId) =>
+    `${normalizedAppUrl}/gallery?page=1#image-${encodeURIComponent(String(imageId))}`;
+
+  const getShareDialogUrl = ({ imageId, target }) => {
+    const encodedText = encodeURIComponent(shareText);
+    const encodedUrl = encodeURIComponent(getCanonicalImageUrl(imageId));
+
+    if (target === "x") {
+      return `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`;
+    }
+
+    if (target === "facebook") {
+      return `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+    }
+
+    if (target === "whatsapp") {
+      return `https://wa.me/?text=${encodedText}%20${encodedUrl}`;
+    }
+
+    return "";
+  };
+
+  const renderShareButtonsMarkup = (imageId) => {
+    const safeImageId = escapeHtml(String(imageId));
+
+    if (shareButtonsTemplate?.innerHTML) {
+      return shareButtonsTemplate.innerHTML.replaceAll(
+        "{{IMAGE_ID}}",
+        safeImageId,
+      );
+    }
+
+    return `
+      <div class="share-row" data-image-id="${safeImageId}">
+        <button class="share-btn share-btn-x" type="button" data-share-target="x" data-image-id="${safeImageId}">Share on X</button>
+        <button class="share-btn share-btn-facebook" type="button" data-share-target="facebook" data-image-id="${safeImageId}">Share on Facebook</button>
+        <button class="share-btn share-btn-whatsapp" type="button" data-share-target="whatsapp" data-image-id="${safeImageId}">Share on WhatsApp</button>
+      </div>
+    `;
+  };
+
+  const injectShareButtonsIntoCard = (imageCard) => {
+    if (!imageCard || imageCard.querySelector(".share-row")) {
+      return;
+    }
+
+    const imageId = imageCard.dataset.imageId || "";
+    if (!imageId) {
+      return;
+    }
+
+    const expanded = imageCard.querySelector(".card-expanded");
+    if (!expanded) {
+      return;
+    }
+
+    const commentsList = expanded.querySelector(".comments");
+    const shareMarkup = renderShareButtonsMarkup(imageId);
+
+    if (commentsList) {
+      commentsList.insertAdjacentHTML("beforebegin", shareMarkup);
+      return;
+    }
+
+    expanded.insertAdjacentHTML("beforeend", shareMarkup);
+  };
+
+  const injectShareButtonsIntoExistingCards = () => {
+    galleryGrid.querySelectorAll(".image-card").forEach((card) => {
+      injectShareButtonsIntoCard(card);
+    });
   };
 
   const clearScrollError = () => {
@@ -180,6 +290,7 @@
           </summary>
           <div class="card-expanded">
             ${interactionMarkup}
+            ${renderShareButtonsMarkup(safeImageId)}
             <ul class="comments">${commentsMarkup}</ul>
           </div>
         </details>
@@ -376,6 +487,29 @@
       }
     }
   });
+
+  document.addEventListener("click", (event) => {
+    const shareButton = event.target.closest(".share-btn");
+    if (!shareButton) {
+      return;
+    }
+
+    const imageId = shareButton.dataset.imageId;
+    const target = shareButton.dataset.shareTarget;
+
+    if (!imageId || !target) {
+      return;
+    }
+
+    const shareUrl = getShareDialogUrl({ imageId, target });
+    if (!shareUrl) {
+      return;
+    }
+
+    window.open(shareUrl, "_blank", "noopener");
+  });
+
+  injectShareButtonsIntoExistingCards();
 
   if (scrollSentinel && hasMore && "IntersectionObserver" in window) {
     scrollObserver = new IntersectionObserver(

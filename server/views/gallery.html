@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="csrf-token" content="{{CSRF_TOKEN}}" />
+    <meta name="app-url" content="http://localhost:8080" />
     <title>Gallery | Camagru</title>
     <link rel="stylesheet" href="/public/css/main.css" />
     <link rel="stylesheet" href="/public/css/gallery.css" />
@@ -64,6 +65,35 @@
             class="scroll-sentinel"
             aria-hidden="true"
           ></div>
+
+          <template id="share-buttons-template">
+            <div class="share-row" data-image-id="{{IMAGE_ID}}">
+              <button
+                class="share-btn share-btn-x"
+                type="button"
+                data-share-target="x"
+                data-image-id="{{IMAGE_ID}}"
+              >
+                Share on X
+              </button>
+              <button
+                class="share-btn share-btn-facebook"
+                type="button"
+                data-share-target="facebook"
+                data-image-id="{{IMAGE_ID}}"
+              >
+                Share on Facebook
+              </button>
+              <button
+                class="share-btn share-btn-whatsapp"
+                type="button"
+                data-share-target="whatsapp"
+                data-image-id="{{IMAGE_ID}}"
+              >
+                Share on WhatsApp
+              </button>
+            </div>
+          </template>
         </div>
       </main>
 
