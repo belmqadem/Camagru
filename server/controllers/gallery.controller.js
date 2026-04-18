@@ -26,6 +26,23 @@ const parsePage = (value) => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 };
 
+const isAjaxRequest = (req) => {
+  const requestedWith = String(req.get("x-requested-with") || "").toLowerCase();
+  const accept = String(req.get("accept") || "").toLowerCase();
+
+  return (
+    requestedWith === "xmlhttprequest" || accept.includes("application/json")
+  );
+};
+
+const sendError = (req, res, status, message) => {
+  if (isAjaxRequest(req)) {
+    return res.status(status).json({ error: message });
+  }
+
+  return res.status(status).send(message);
+};
+
 const renderNavAuth = ({ currentUser, csrfToken }) => {
   if (!currentUser) {
     return [
@@ -74,30 +91,32 @@ const renderGalleryHTML = ({
       const interactionMarkup = currentUser
         ? `
           <div class="interaction-row">
-            <form class="like-form" method="POST" action="/gallery/${image.id}/like">
+            <form class="like-form" method="POST" action="/gallery/${image.id}/like" data-image-id="${image.id}">
               <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
               <input type="hidden" name="page" value="${currentPage}">
               <button class="btn" type="submit">${image.viewer_liked ? "Unlike" : "Like"}</button>
             </form>
-            <form class="comment-form" method="POST" action="/gallery/${image.id}/comment">
+            <p class="form-error" hidden aria-live="polite"></p>
+            <form class="comment-form" method="POST" action="/gallery/${image.id}/comment" data-image-id="${image.id}">
               <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
               <input type="hidden" name="page" value="${currentPage}">
               <input class="input" type="text" name="content" maxlength="${MAX_COMMENT_LENGTH}" placeholder="Add a comment" required>
               <button class="btn" type="submit">Comment</button>
             </form>
+            <p class="form-error" hidden aria-live="polite"></p>
           </div>
 				`
         : '<p class="interaction-hint"><a href="/login">Log in</a> to interact.</p>';
 
       return `
-				<article class="image-card" id="image-${image.id}">
+				<article class="image-card" id="image-${image.id}" data-image-id="${image.id}">
           <details class="image-disclosure">
             <summary>
               <div class="card-preview">
                 <img src="/public/uploads/${encodeURIComponent(image.filename)}" alt="${escapeHtml(image.filename)}">
                 <div class="card-meta">
                   <span class="card-author">${escapeHtml(image.author_username)}</span>
-                  <span class="meta-stats">${image.like_count} likes · ${image.comment_count} comments</span>
+                  <span class="meta-stats"><span class="like-count">${image.like_count}</span> likes · <span class="comment-count">${image.comment_count}</span> comments</span>
                 </div>
               </div>
             </summary>
@@ -177,48 +196,53 @@ exports.getGallery = async (req, res) => {
 
 exports.postToggleLike = async (req, res) => {
   const imageId = Number.parseInt(req.params.id, 10);
-  const page = parsePage(req.body.page);
+  const page = parsePage(req.body?.page);
 
   if (!Number.isInteger(imageId) || imageId <= 0) {
-    return res.status(400).send("Invalid image id");
+    return sendError(req, res, 400, "Invalid image id");
   }
 
   const image = await imageModel.findByIdWithAuthor(imageId);
   if (!image) {
-    return res.status(404).send("Image not found");
+    return sendError(req, res, 404, "Image not found");
   }
 
-  await likeModel.toggle({
+  const toggleResult = await likeModel.toggle({
     userId: req.session.userId,
     imageId,
   });
+
+  if (isAjaxRequest(req)) {
+    const likeCount = await likeModel.countByImageId(imageId);
+    return res.json({ liked: toggleResult.liked, likeCount });
+  }
 
   return res.redirect(`/gallery?page=${page}`);
 };
 
 exports.postComment = async (req, res) => {
   const imageId = Number.parseInt(req.params.id, 10);
-  const page = parsePage(req.body.page);
-  const content = String(req.body.content || "").trim();
+  const page = parsePage(req.body?.page);
+  const content = String(req.body?.content || "").trim();
 
   if (!Number.isInteger(imageId) || imageId <= 0) {
-    return res.status(400).send("Invalid image id");
+    return sendError(req, res, 400, "Invalid image id");
   }
 
   if (!content) {
-    return res.status(400).send("Comment content is required");
+    return sendError(req, res, 400, "Comment content is required");
   }
 
   if (content.length > MAX_COMMENT_LENGTH) {
-    return res.status(400).send("Comment is too long");
+    return sendError(req, res, 400, "Comment is too long");
   }
 
   const image = await imageModel.findByIdWithAuthor(imageId);
   if (!image) {
-    return res.status(404).send("Image not found");
+    return sendError(req, res, 404, "Image not found");
   }
 
-  await commentModel.create({
+  const createdComment = await commentModel.create({
     userId: req.session.userId,
     imageId,
     content,
@@ -241,6 +265,17 @@ exports.postComment = async (req, res) => {
 		`,
     ).catch((error) => {
       logger.error("Failed to send comment notification email", error);
+    });
+  }
+
+  if (isAjaxRequest(req)) {
+    return res.json({
+      success: true,
+      comment: {
+        author_username: req.session.user?.username || "You",
+        content: createdComment.content,
+        created_at: createdComment.created_at,
+      },
     });
   }
 
