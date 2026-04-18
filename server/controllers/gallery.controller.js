@@ -26,6 +26,22 @@ const parsePage = (value) => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 };
 
+const serializeImageForJson = (image) => ({
+  id: image.id,
+  filename: image.filename,
+  author_username: image.author_username,
+  like_count: Number(image.like_count) || 0,
+  comment_count: Number(image.comment_count) || 0,
+  viewer_liked: Boolean(image.viewer_liked),
+  comments: Array.isArray(image.comments)
+    ? image.comments.map((comment) => ({
+        author_username: comment.author_username,
+        content: comment.content,
+        created_at: comment.created_at,
+      }))
+    : [],
+});
+
 const isAjaxRequest = (req) => {
   const requestedWith = String(req.get("x-requested-with") || "").toLowerCase();
   const accept = String(req.get("accept") || "").toLowerCase();
@@ -130,28 +146,20 @@ const renderGalleryHTML = ({
     })
     .join("");
 
-  const prevLink =
-    currentPage > 1
-      ? `<a class="pager-link" href="/gallery?page=${currentPage - 1}">Previous</a>`
-      : '<span class="pager-link disabled">Previous</span>';
-  const nextLink =
-    currentPage < totalPages
-      ? `<a class="pager-link" href="/gallery?page=${currentPage + 1}">Next</a>`
-      : '<span class="pager-link disabled">Next</span>';
-
   return galleryTemplate
     .replace("{{CSRF_TOKEN}}", escapeHtml(csrfToken))
     .replace("{{NAV_AUTH}}", renderNavAuth({ currentUser, csrfToken }))
     .replace("{{PAGE_INFO}}", `Page ${currentPage} of ${totalPages}`)
+    .replace("{{CURRENT_PAGE}}", String(currentPage))
+    .replace("{{TOTAL_PAGES}}", String(totalPages))
+    .replace("{{CAN_INTERACT}}", currentUser ? "true" : "false")
     .replace(
       "{{AUTH_HINT}}",
       currentUser
         ? ""
         : '<p class="auth-hint"><a href="/login">Log in</a> to like and comment on photos.</p>',
     )
-    .replace("{{IMAGES}}", imageCards || '<p class="empty">No images yet.</p>')
-    .replace("{{PREV_LINK}}", prevLink)
-    .replace("{{NEXT_LINK}}", nextLink);
+    .replace("{{IMAGES}}", imageCards || '<p class="empty">No images yet.</p>');
 };
 
 exports.getGallery = async (req, res) => {
@@ -182,6 +190,15 @@ exports.getGallery = async (req, res) => {
     ...image,
     comments: commentsByImage.get(image.id) || [],
   }));
+
+  if (isAjaxRequest(req)) {
+    return res.json({
+      images: imagesWithComments.map(serializeImageForJson),
+      currentPage,
+      totalPages,
+      hasMore: currentPage < totalPages,
+    });
+  }
 
   res.send(
     renderGalleryHTML({
