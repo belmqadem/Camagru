@@ -26,6 +26,7 @@ const escapeHtml = (value) =>
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+const getCurrentPath = (req) => `${req.baseUrl || ""}${req.path || ""}` || "/";
 
 const getLoginPageMessage = (query) => {
   if (query.verified === "1") {
@@ -59,8 +60,20 @@ const getLoginPageMessage = (query) => {
   return { text: "", type: "error" };
 };
 
+const renderRegisterPage = (req, message = "", messageType = "error") =>
+  registerHTML(generate(req), message, messageType, getCurrentPath(req));
+
+const renderLoginPage = (req, message = "", messageType = "error") =>
+  loginHTML(generate(req), message, messageType, getCurrentPath(req));
+
+const renderForgotPage = (req, message = "", messageType = "error") =>
+  forgotHTML(generate(req), message, messageType, getCurrentPath(req));
+
+const renderResetPage = (req, token, message = "", messageType = "error") =>
+  resetHTML(generate(req), token, message, messageType, getCurrentPath(req));
+
 exports.getRegister = (req, res) => {
-  res.send(registerHTML(generate(req)));
+  res.send(renderRegisterPage(req));
 };
 
 exports.postRegister = async (req, res) => {
@@ -71,19 +84,19 @@ exports.postRegister = async (req, res) => {
   if (!normalizedUsername || !normalizedEmail || !password)
     return res
       .status(400)
-      .send(registerHTML(generate(req), "All fields are required"));
+      .send(renderRegisterPage(req, "All fields are required"));
 
   if (!EMAIL_REGEX.test(normalizedEmail))
     return res
       .status(400)
-      .send(registerHTML(generate(req), "Invalid email address"));
+      .send(renderRegisterPage(req, "Invalid email address"));
 
   if (!PASSWORD_REGEX.test(password))
     return res
       .status(400)
       .send(
-        registerHTML(
-          generate(req),
+        renderRegisterPage(
+          req,
           "Password must be 8+ chars with 1 uppercase and 1 number",
         ),
       );
@@ -92,13 +105,13 @@ exports.postRegister = async (req, res) => {
   if (existing)
     return res
       .status(400)
-      .send(registerHTML(generate(req), "Email already in use"));
+      .send(renderRegisterPage(req, "Email already in use"));
 
   const existingUser = await userModel.findByUsername(normalizedUsername);
   if (existingUser)
     return res
       .status(400)
-      .send(registerHTML(generate(req), "Username already taken"));
+      .send(renderRegisterPage(req, "Username already taken"));
 
   const passwordHash = await bcrypt.hash(password, 12);
   const verifyToken = crypto.randomBytes(32).toString("hex");
@@ -131,13 +144,13 @@ exports.getVerify = async (req, res) => {
   if (!token)
     return res
       .status(400)
-      .send(loginHTML(generate(req), "Missing verification token.", "error"));
+      .send(renderLoginPage(req, "Missing verification token.", "error"));
 
   const user = await userModel.findByVerifyToken(token);
   if (!user)
     return res
       .status(400)
-      .send(loginHTML(generate(req), "Invalid or expired token.", "error"));
+      .send(renderLoginPage(req, "Invalid or expired token.", "error"));
 
   await userModel.verify(user.id);
   res.redirect("/login?verified=1");
@@ -145,7 +158,7 @@ exports.getVerify = async (req, res) => {
 
 exports.getLogin = (req, res) => {
   const { text, type } = getLoginPageMessage(req.query || {});
-  res.send(loginHTML(generate(req), text, type));
+  res.send(renderLoginPage(req, text, type));
 };
 
 exports.postLogin = async (req, res) => {
@@ -155,26 +168,22 @@ exports.postLogin = async (req, res) => {
   if (!normalizedUsername || !password)
     return res
       .status(400)
-      .send(loginHTML(generate(req), "Username and password are required"));
+      .send(renderLoginPage(req, "Username and password are required"));
 
   const user = await userModel.findByUsername(normalizedUsername);
   if (!user)
-    return res
-      .status(401)
-      .send(loginHTML(generate(req), "Invalid credentials"));
+    return res.status(401).send(renderLoginPage(req, "Invalid credentials"));
 
   if (!user.verified)
     return res
       .status(401)
       .send(
-        loginHTML(generate(req), "Please confirm your email before logging in"),
+        renderLoginPage(req, "Please confirm your email before logging in"),
       );
 
   const match = await bcrypt.compare(password, user.password);
   if (!match)
-    return res
-      .status(401)
-      .send(loginHTML(generate(req), "Invalid credentials"));
+    return res.status(401).send(renderLoginPage(req, "Invalid credentials"));
 
   req.session.userId = user.id;
   req.session.user = {
@@ -190,14 +199,14 @@ exports.logout = (req, res) => {
     if (err)
       return res
         .status(500)
-        .send(loginHTML(generate(req), "Could not log out", "error"));
+        .send(renderLoginPage(req, "Could not log out", "error"));
     res.clearCookie("connect.sid");
     return res.redirect("/login?logged_out=1");
   });
 };
 
 exports.getForgot = (req, res) => {
-  res.send(forgotHTML(generate(req)));
+  res.send(renderForgotPage(req));
 };
 
 exports.postForgot = async (req, res) => {
@@ -206,9 +215,7 @@ exports.postForgot = async (req, res) => {
   const normalizedEmail = normalizeEmail(email);
 
   if (!EMAIL_REGEX.test(normalizedEmail))
-    return res
-      .status(400)
-      .send(forgotHTML(generate(req), "Invalid email address"));
+    return res.status(400).send(renderForgotPage(req, "Invalid email address"));
 
   const user = await userModel.findByEmail(normalizedEmail);
 
@@ -237,8 +244,8 @@ exports.postForgot = async (req, res) => {
   }
 
   res.send(
-    forgotHTML(
-      generate(req),
+    renderForgotPage(
+      req,
       "If that email exists, a reset link has been sent.",
       "info",
     ),
@@ -248,38 +255,38 @@ exports.postForgot = async (req, res) => {
 exports.getReset = async (req, res) => {
   const { token } = req.query;
   if (!token)
-    return res.status(400).send(resetHTML(generate(req), "", "Missing token"));
+    return res.status(400).send(renderResetPage(req, "", "Missing token"));
 
   const user = await userModel.findByResetToken(token);
   if (!user)
     return res
       .status(400)
-      .send(resetHTML(generate(req), token, "Invalid or expired reset link"));
+      .send(renderResetPage(req, token, "Invalid or expired reset link"));
 
-  res.send(resetHTML(generate(req), token));
+  res.send(renderResetPage(req, token));
 };
 
 exports.postReset = async (req, res) => {
   const { token, password } = req.body;
   if (!token)
-    return res.status(400).send(resetHTML(generate(req), "", "Missing token"));
+    return res.status(400).send(renderResetPage(req, "", "Missing token"));
   if (!password)
     return res
       .status(400)
-      .send(resetHTML(generate(req), token, "Password is required"));
+      .send(renderResetPage(req, token, "Password is required"));
 
   const user = await userModel.findByResetToken(token);
   if (!user)
     return res
       .status(400)
-      .send(resetHTML(generate(req), token, "Invalid or expired reset link"));
+      .send(renderResetPage(req, token, "Invalid or expired reset link"));
 
   if (!PASSWORD_REGEX.test(password))
     return res
       .status(400)
       .send(
-        resetHTML(
-          generate(req),
+        renderResetPage(
+          req,
           token,
           "Password must be 8+ chars with 1 uppercase and 1 number",
         ),

@@ -5,15 +5,28 @@ const escapeHtml = (value) =>
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;");
 
-const loggedOutNav = [
-  '<a class="nav-link" href="/login">Login</a>',
-  '<a class="nav-link" href="/register">Register</a>',
-].join("");
+const normalizePath = (value) => {
+  const raw = String(value || "/")
+    .split("?")[0]
+    .replace(/\/+$/, "");
+  return raw || "/";
+};
+
+const loggedOutNav = (currentPath) => {
+  const safePath = normalizePath(currentPath);
+  const isActive = (path) => safePath === normalizePath(path);
+
+  return [
+    `<a class="nav-link nav-login-link ${isActive("/login") ? "active" : ""}" href="/login">Login</a>`,
+    `<a class="nav-link nav-register-btn ${isActive("/register") ? "active" : ""}" href="/register">Register</a>`,
+  ].join("");
+};
 
 const authPageHTML = ({
   title,
   subtitle,
   csrf,
+  currentPath = "",
   message = "",
   messageType = "error",
   form,
@@ -39,10 +52,6 @@ const authPageHTML = ({
               <img src="/public/assets/camagru-logo.png" alt="Camagru Logo" class="logo" />
             </span>
           </a>
-          <input id="nav-toggle" class="nav-toggle" type="checkbox" />
-          <label class="nav-toggle-label" for="nav-toggle" aria-label="Toggle navigation">
-            <span></span><span></span><span></span>
-          </label>
           <nav class="site-nav">{{NAV_AUTH}}</nav>
         </div>
       </header>
@@ -71,14 +80,20 @@ const authPageHTML = ({
 
   return template
     .replace("{{CSRF_TOKEN}}", escapeHtml(csrf))
-    .replace("{{NAV_AUTH}}", loggedOutNav);
+    .replace("{{NAV_AUTH}}", loggedOutNav(currentPath));
 };
 
-const registerHTML = (csrf, message = "", messageType = "error") =>
+const registerHTML = (
+  csrf,
+  message = "",
+  messageType = "error",
+  currentPath = "",
+) =>
   authPageHTML({
     title: "Create Account",
     subtitle: "Sign up to start using Camagru.",
     csrf,
+    currentPath,
     message,
     messageType,
     form: `
@@ -96,11 +111,17 @@ const registerHTML = (csrf, message = "", messageType = "error") =>
     links: ['<a href="/login">Already have an account? Login</a>'],
   });
 
-const loginHTML = (csrf, message = "", messageType = "error") =>
+const loginHTML = (
+  csrf,
+  message = "",
+  messageType = "error",
+  currentPath = "",
+) =>
   authPageHTML({
     title: "Welcome Back",
     subtitle: "Log in to continue.",
     csrf,
+    currentPath,
     message,
     messageType,
     form: `
@@ -119,11 +140,17 @@ const loginHTML = (csrf, message = "", messageType = "error") =>
     ],
   });
 
-const forgotHTML = (csrf, message = "", messageType = "error") =>
+const forgotHTML = (
+  csrf,
+  message = "",
+  messageType = "error",
+  currentPath = "",
+) =>
   authPageHTML({
     title: "Reset Password",
     subtitle: "Enter your email to receive a reset link.",
     csrf,
+    currentPath,
     message,
     messageType,
     form: `
@@ -137,11 +164,18 @@ const forgotHTML = (csrf, message = "", messageType = "error") =>
     links: ['<a href="/login">Already have an account? Login</a>'],
   });
 
-const resetHTML = (csrf, token, message = "", messageType = "error") =>
+const resetHTML = (
+  csrf,
+  token,
+  message = "",
+  messageType = "error",
+  currentPath = "",
+) =>
   authPageHTML({
     title: "Choose New Password",
     subtitle: "Set a new password for your account.",
     csrf,
+    currentPath,
     message,
     messageType,
     form: `

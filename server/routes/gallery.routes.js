@@ -5,6 +5,7 @@ const authMiddleware = require("../middlewares/auth.middleware");
 const withErrorHandling = require("../utils/withErrorHandling");
 
 router.get("/", withErrorHandling(gallery.getGallery));
+router.get("/:id/comments", withErrorHandling(gallery.getImageComments));
 
 router.post(
   "/:id/like",
