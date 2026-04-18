@@ -39,8 +39,13 @@
   };
 
   const parseErrorMessage = async (response) => {
+    const raw = await response
+      .clone()
+      .text()
+      .catch(() => "");
+
     try {
-      const payload = await response.json();
+      const payload = JSON.parse(raw);
       if (
         payload &&
         typeof payload.error === "string" &&
@@ -49,11 +54,10 @@
         return payload.error;
       }
     } catch (_error) {
-      // Ignore JSON parsing failures and use fallback text.
+      // Ignore JSON parsing failures and use text fallback.
     }
 
-    const text = await response.text().catch(() => "");
-    return text || "Request failed";
+    return raw || "Request failed";
   };
 
   const postForm = async (form) => {
@@ -126,7 +130,7 @@
       input.value = "";
     }
 
-    const commentCountElement = imageCard.querySelector(".comment-count");
+    const commentCountElement = imageCard?.querySelector(".comment-count");
     if (commentCountElement) {
       const current = Number.parseInt(commentCountElement.textContent, 10);
       if (Number.isInteger(current)) {
