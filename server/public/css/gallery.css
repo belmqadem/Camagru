@@ -173,31 +173,11 @@
   background: #fff;
 }
 
-.pagination {
-  margin-top: 1.35rem;
-  display: flex;
-  justify-content: center;
-  gap: 0.7rem;
-}
-
-.pager-link {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: #fff;
-  color: var(--color-text-muted);
-  padding: 0.54rem 0.78rem;
-}
-
-.pager-link:not(.disabled) {
-  color: var(--color-text);
-}
-
-.pager-link:not(.disabled):hover {
-  border-color: #c6ccd2;
-}
-
-.pager-link.disabled {
-  opacity: 0.55;
+.scroll-sentinel {
+  height: 1px;
+  margin-top: 0.35rem;
+  opacity: 0;
+  pointer-events: none;
 }
 
 @media (max-width: 1024px) {

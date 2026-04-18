@@ -49,9 +49,21 @@
             <p>{{PAGE_INFO}}</p>
           </section>
 
-          <section class="gallery-grid">{{IMAGES}}</section>
+          <section
+            id="galleryGrid"
+            class="gallery-grid"
+            data-current-page="{{CURRENT_PAGE}}"
+            data-total-pages="{{TOTAL_PAGES}}"
+            data-can-interact="{{CAN_INTERACT}}"
+          >
+            {{IMAGES}}
+          </section>
 
-          <nav class="pagination">{{PREV_LINK}} {{NEXT_LINK}}</nav>
+          <div
+            id="scroll-sentinel"
+            class="scroll-sentinel"
+            aria-hidden="true"
+          ></div>
         </div>
       </main>
 
