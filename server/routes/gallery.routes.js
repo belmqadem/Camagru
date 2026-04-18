@@ -6,6 +6,7 @@ const withErrorHandling = require("../utils/withErrorHandling");
 
 router.get("/", withErrorHandling(gallery.getGallery));
 router.get("/:id/comments", withErrorHandling(gallery.getImageComments));
+router.get("/:id", withErrorHandling(gallery.getImage));
 
 router.post(
   "/:id/like",

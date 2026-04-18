@@ -127,7 +127,7 @@
     '<i class="fa-regular fa-comment" aria-hidden="true"></i>';
 
   const getCanonicalImageUrl = (imageId) =>
-    `${normalizedAppUrl}/gallery?page=1#image-${encodeURIComponent(String(imageId))}`;
+    `${normalizedAppUrl}/gallery/${encodeURIComponent(String(imageId))}`;
 
   const getShareDialogUrl = ({ imageId, target }) => {
     const encodedText = encodeURIComponent(shareText);
@@ -401,7 +401,9 @@
         </header>
 
         <div class="post-media">
-          <img class="post-image" src="/public/uploads/${encodeURIComponent(filename)}" alt="${escapeHtml(filename)}">
+          <a class="post-image-link" href="/gallery/${safeImageId}?page=${page}" aria-label="Open photo details">
+            <img class="post-image" src="/public/uploads/${encodeURIComponent(filename)}" alt="${escapeHtml(filename)}">
+          </a>
         </div>
 
         <div class="post-body">

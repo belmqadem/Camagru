@@ -73,6 +73,7 @@ const imageModel = {
       `SELECT
 				 i.id,
 				 i.filename,
+				 i.created_at,
 				 i.user_id AS author_id,
 				 u.username AS author_username,
 				 u.email AS author_email,
