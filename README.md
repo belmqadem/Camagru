@@ -1,57 +1,94 @@
 # Camagru
 
-## What is this project?
+Camagru is a full-stack photo editing web application where users can capture webcam photos or upload local images, apply predefined overlay stickers, and publish the final result to a public gallery where other users can like, comment, and interact in real time.
 
-Camagru is a 42 School web project where you build an Instagram-like photo editing app. Users can take webcam photos, overlay predefined sticker images on top, share them publicly, and interact via likes and comments.
+## Features
 
-## Tech Constraints
+- Authentication system (registration, login, logout, email verification, password reset)
+- Webcam capture with upload fallback for unsupported devices
+- Overlay compositing with predefined stickers
+- Public gallery feed for published photos
+- Like system with instant updates
+- Comment system with live append
+- Email notifications for new comments
+- Profile settings management
+- Dedicated image detail page (`/gallery/:id`)
+- Social sharing (X/Twitter, Facebook, WhatsApp)
+- Infinite scroll on the gallery feed
+- Live overlay preview with drag/resize controls
 
-These are strict and will get you failed if ignored:
+## Tech Stack
 
-- **Server-side:** Any language, BUT every function you use must have a PHP standard library equivalent. This means no fancy ORMs, no magic libraries — keep it close to vanilla PHP logic even if you write in another language.
+| Layer               | Technology                    |
+| ------------------- | ----------------------------- |
+| Backend             | Node.js, Express.js           |
+| Database            | PostgreSQL                    |
+| Image Processing    | Sharp                         |
+| Authentication      | bcrypt, express-session       |
+| Email (Development) | Nodemailer, Mailhog           |
+| Containerization    | Docker, docker-compose        |
+| Frontend            | Vanilla HTML, CSS, JavaScript |
 
-- **Client-side:** Pure HTML + CSS + JavaScript. No JS frameworks at all — no React, no Vue, no jQuery. CSS frameworks (like Bootstrap/Tailwind) are OK only if they don't pull in JS.
+## Prerequisites
 
-- **Containerization:** Docker / docker-compose is mandatory. One command must launch the whole app.
+- Docker
+- docker-compose
 
-- **Security is mandatory**, not optional — SQL injection, XSS, CSRF, plain-text passwords and unvalidated uploads will all fail your evaluation.
+## Getting Started
 
-- **Browser compatibility:** Firefox ≥ 41 and Chrome ≥ 46.
+```bash
+git clone <repo>
+cd camagru
+cp .env.example .env
+# fill in .env values
+docker-compose up --build
+```
 
-## Full stack
+## Environment Variables
 
-| Layer            | Choice                  |
-| ---------------- | ----------------------- |
-| Server           | Node.js + Express.js    |
-| Database         | PostgreSQL              |
-| Image Processing | Sharp                   |
-| Email (dev)      | Nodemailer + Mailhog    |
-| Containerization | Docker + docker-compose |
-| Frontend         | Vanilla HTML + CSS + JS |
+| Variable         | Description                                            |
+| ---------------- | ------------------------------------------------------ |
+| `DB_USER`        | PostgreSQL username                                    |
+| `DB_PASSWORD`    | PostgreSQL password                                    |
+| `DB_NAME`        | PostgreSQL database name                               |
+| `DB_HOST`        | PostgreSQL host (Docker service name)                  |
+| `DB_PORT`        | PostgreSQL port                                        |
+| `SESSION_SECRET` | Session signing secret used by `express-session`       |
+| `SMTP_HOST`      | SMTP host for outgoing emails (Mailhog in development) |
+| `SMTP_PORT`      | SMTP port for outgoing emails                          |
+| `APP_URL`        | Public base URL used for links and sharing             |
 
-## Feature Breakdown
+## Usage
 
-### 👤 User System
+Start the stack, then open `http://localhost:8080` to use the application; development emails (verification and notifications) are available in Mailhog at `http://localhost:8025`.
 
-- Register with email + username + password (with complexity rules)
-- Email confirmation via unique link before login is allowed
-- Login / Logout (one-click logout on every page)
-- Password reset by email
-- Edit profile (username, email, password)
+## Project Structure
 
-### 🖼️ Gallery (Public)
+```text
+camagru/
+├── server/
+│   └── public/
+├── db/
+└── nginx/
+```
 
-- All images from all users, sorted newest first
-- Paginated — minimum 5 per page
-- Logged-in users can like and comment
-- Image author gets an email notification on new comment (on by default, togglable in settings)
+## Security
 
-### ✏️ Editing Page (Auth Required)
+- CSRF protection on state-changing requests
+- Password hashing with bcrypt
+- Parameterized SQL queries
+- XSS escaping for rendered user content
+- File upload validation (type and size)
+- Ownership checks for protected resource actions
 
-- Live webcam preview in the main section
-- List of selectable overlay images (PNG with alpha channel — transparency matters!)
-- Capture button is disabled until an overlay is selected
-- Image compositing (merging webcam + overlay) happens server-side
-- Upload fallback for users without a webcam
-- Side panel showing the user's previous creations
-- Users can delete only their own images
+## Bonus Features
+
+- Infinite scroll gallery feed
+- Social sharing to X/Twitter, Facebook, and WhatsApp
+- Image detail page with full comment thread and Open Graph tags
+- Live overlay preview with drag and resize
+- AJAX likes and comments without page reload
+
+## License
+
+MIT
