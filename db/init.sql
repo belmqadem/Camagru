@@ -49,7 +49,9 @@ CREATE TABLE comments (
 -- Seed your overlay stickers
 INSERT INTO overlays (filename) VALUES
   ('frame.png'),
-  ('glasses.png'),
+  ('frame2.png'),
+  ('glasses-blue.png'),
+  ('glasses-colors.png'),
   ('hair.png'),
 	('men-hat.png'),
 	('women-hat.png');
