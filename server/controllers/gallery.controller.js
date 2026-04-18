@@ -21,6 +21,10 @@ const galleryTemplate = fs.readFileSync(
   path.join(__dirname, "../views/gallery.html"),
   "utf8",
 );
+const imageTemplate = fs.readFileSync(
+  path.join(__dirname, "../views/image.html"),
+  "utf8",
+);
 
 const escapeHtml = (value) =>
   String(value)
@@ -33,6 +37,18 @@ const parsePage = (value) => {
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 };
+
+const getAppUrl = () => {
+  const configured = String(process.env.APP_URL || "").trim();
+  if (!configured) {
+    return "http://localhost:8080";
+  }
+
+  return configured.replace(/\/+$/, "");
+};
+
+const getRequestPath = (req) =>
+  normalizePath(`${req.baseUrl || ""}${req.path || ""}`);
 
 const normalizePath = (value) => {
   const raw = String(value || "/")
@@ -104,6 +120,153 @@ const renderShareButtons = (imageId) => `
     </button>
   </div>
 `;
+
+const renderImageComments = (comments) => {
+  if (!Array.isArray(comments) || comments.length === 0) {
+    return '<li class="detail-comments-empty">No comments yet</li>';
+  }
+
+  return comments
+    .map((comment) => {
+      const authorUsername = String(comment.author_username || "User");
+      const avatarInitial = getAvatarInitial(authorUsername);
+      const commentDateIso = toIsoDate(comment.created_at);
+      const commentDate = formatPostDate(comment.created_at);
+
+      return `
+        <li class="detail-comment-item">
+          <span class="detail-comment-avatar">${escapeHtml(avatarInitial)}</span>
+          <div class="detail-comment-content">
+            <p class="detail-comment-text">
+              <span class="detail-comment-author">${escapeHtml(authorUsername)}</span>
+              <span>${escapeHtml(comment.content)}</span>
+            </p>
+            <time class="detail-comment-time" datetime="${escapeHtml(commentDateIso)}" data-relative-time="${escapeHtml(commentDateIso)}">${escapeHtml(commentDate)}</time>
+          </div>
+        </li>
+      `;
+    })
+    .join("");
+};
+
+const renderImageNotFoundHTML = ({ csrfToken, currentUser, currentPath }) => `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="csrf-token" content="${escapeHtml(csrfToken)}" />
+    <title>Image Not Found | Camagru</title>
+    <link rel="stylesheet" href="/public/assets/fontawesome/css/all.min.css" />
+    <link rel="stylesheet" href="/public/css/main.css" />
+    <link rel="stylesheet" href="/public/css/image.css" />
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="site-header">
+        <div class="container nav-wrap">
+          <a class="brand" href="/gallery">
+            <span class="brand-logo-wrap">
+              <img src="/public/assets/camagru-logo.png" alt="Camagru Logo" class="logo" />
+            </span>
+          </a>
+          <nav class="site-nav">${renderNavAuth({ currentUser, csrfToken, currentPath })}</nav>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <div class="container image-detail-shell">
+          <a class="back-link" href="/gallery">&larr; Back to Gallery</a>
+          <section class="image-not-found">
+            <h1>Image not found</h1>
+            <p>The photo you are looking for does not exist or was removed.</p>
+          </section>
+        </div>
+      </main>
+
+      <footer class="site-footer">
+        <p>Camagru © 2025</p>
+      </footer>
+    </div>
+  </body>
+</html>
+`;
+
+const renderImageDetailHTML = ({
+  image,
+  comments,
+  likeCount,
+  viewerLiked,
+  csrfToken,
+  currentUser,
+  currentPath,
+  page,
+}) => {
+  const appUrl = getAppUrl();
+  const commentsCount = comments.length;
+  const postDateIso = toIsoDate(image.created_at);
+  const postDate = formatPostDate(image.created_at);
+  const authorAvatarInitial = getAvatarInitial(image.author_username);
+  const safeImageId = String(image.id);
+  const safeFilename = String(image.filename || "");
+  const encodedFilename = encodeURIComponent(safeFilename);
+  const ogTitle = `Photo by ${image.author_username} on Camagru`;
+  const ogImage = `/public/uploads/${encodedFilename}`;
+  const ogUrl = `${appUrl}/gallery/${encodeURIComponent(safeImageId)}`;
+
+  const likeButtonMarkup = currentUser
+    ? `
+      <form id="detailLikeForm" class="detail-like-form like-form" method="POST" action="/gallery/${safeImageId}/like" data-image-id="${safeImageId}">
+        <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
+        <input type="hidden" name="page" value="${page}">
+        <button class="icon-btn like-toggle ${viewerLiked ? "liked" : ""}" type="submit" aria-label="${viewerLiked ? "Unlike" : "Like"}">${renderHeartIcon(viewerLiked)}</button>
+      </form>
+      <p id="detailLikeError" class="form-error" hidden aria-live="polite"></p>
+    `
+    : `
+      <a class="icon-btn detail-login-link" href="/login" aria-label="Log in to like">
+        ${renderHeartIcon(false)}
+      </a>
+    `;
+
+  const commentComposerMarkup = currentUser
+    ? `
+      <form id="detailCommentForm" class="detail-comment-form comment-form" method="POST" action="/gallery/${safeImageId}/comment" data-image-id="${safeImageId}">
+        <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
+        <input type="hidden" name="page" value="${page}">
+        <input class="input" type="text" name="content" maxlength="${MAX_COMMENT_LENGTH}" placeholder="Add a comment..." required>
+        <button class="post-comment-btn" type="submit">Post</button>
+      </form>
+      <p id="detailCommentError" class="form-error" hidden aria-live="polite"></p>
+    `
+    : '<p class="interaction-hint"><a href="/login">Log in to comment</a></p>';
+
+  return imageTemplate
+    .replace("{{CSRF_TOKEN}}", escapeHtml(csrfToken))
+    .replace("{{APP_URL}}", escapeHtml(appUrl))
+    .replace("{{OG_IMAGE}}", escapeHtml(ogImage))
+    .replace("{{OG_TITLE}}", escapeHtml(ogTitle))
+    .replace("{{OG_URL}}", escapeHtml(ogUrl))
+    .replace(
+      "{{NAV_AUTH}}",
+      renderNavAuth({ currentUser, csrfToken, currentPath }),
+    )
+    .replace("{{BACK_LINK}}", `/gallery?page=${page}`)
+    .replace(/{{IMAGE_ID}}/g, escapeHtml(safeImageId))
+    .replace("{{IMAGE_FILENAME}}", escapeHtml(encodedFilename))
+    .replace("{{AUTHOR_AVATAR_INITIAL}}", escapeHtml(authorAvatarInitial))
+    .replace(/{{AUTHOR_USERNAME}}/g, escapeHtml(image.author_username))
+    .replace("{{POST_DATE_ISO}}", escapeHtml(postDateIso))
+    .replace("{{POST_DATE}}", escapeHtml(postDate))
+    .replace("{{LIKE_BUTTON}}", likeButtonMarkup)
+    .replace("{{LIKE_COUNT}}", String(Number(likeCount) || 0))
+    .replace("{{COMMENT_COUNT}}", String(commentsCount))
+    .replace("{{SHARE_BUTTONS}}", renderShareButtons(safeImageId))
+    .replace("{{COMMENTS_TITLE_COUNT}}", String(commentsCount))
+    .replace("{{COMMENTS_ITEMS}}", renderImageComments(comments))
+    .replace("{{COMMENT_COMPOSER}}", commentComposerMarkup)
+    .replace("{{CAN_INTERACT}}", currentUser ? "true" : "false");
+};
 
 const serializeImageForJson = (image) => ({
   id: image.id,
@@ -230,7 +393,9 @@ const renderGalleryHTML = ({
           </header>
 
           <div class="post-media">
-            <img class="post-image" src="/public/uploads/${encodeURIComponent(image.filename)}" alt="${escapeHtml(image.filename)}">
+            <a class="post-image-link" href="/gallery/${image.id}?page=${currentPage}" aria-label="Open photo details">
+              <img class="post-image" src="/public/uploads/${encodeURIComponent(image.filename)}" alt="${escapeHtml(image.filename)}">
+            </a>
           </div>
 
           <div class="post-body">
@@ -326,6 +491,56 @@ exports.getGallery = async (req, res) => {
       csrfToken: generate(req),
       currentUser: req.session.user || null,
       currentPath: normalizePath(req.baseUrl),
+    }),
+  );
+};
+
+exports.getImage = async (req, res) => {
+  const imageId = Number.parseInt(req.params.id, 10);
+  const csrfToken = generate(req);
+  const currentPath = getRequestPath(req);
+  const page = parsePage(req.query.page);
+
+  if (!Number.isInteger(imageId) || imageId <= 0) {
+    return res.status(404).send(
+      renderImageNotFoundHTML({
+        csrfToken,
+        currentUser: req.session.user || null,
+        currentPath,
+      }),
+    );
+  }
+
+  const image = await imageModel.findByIdWithAuthor(imageId);
+  if (!image) {
+    return res.status(404).send(
+      renderImageNotFoundHTML({
+        csrfToken,
+        currentUser: req.session.user || null,
+        currentPath,
+      }),
+    );
+  }
+
+  const [comments, likeCount, viewerLiked] = await Promise.all([
+    imageModel.findCommentsByImageIds([imageId]),
+    likeModel.countByImageId(imageId),
+    likeModel.hasViewerLikedImage({
+      userId: req.session.userId || null,
+      imageId,
+    }),
+  ]);
+
+  return res.send(
+    renderImageDetailHTML({
+      image,
+      comments,
+      likeCount,
+      viewerLiked,
+      csrfToken,
+      currentUser: req.session.user || null,
+      currentPath,
+      page,
     }),
   );
 };

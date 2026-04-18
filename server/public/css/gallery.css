@@ -75,6 +75,11 @@
   border-bottom: 1px solid #f1f2f4;
 }
 
+.post-image-link {
+  display: block;
+  color: inherit;
+}
+
 .post-image {
   display: block;
   width: 100%;
@@ -252,6 +257,8 @@
 
 .comment-content {
   color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .comment-empty {

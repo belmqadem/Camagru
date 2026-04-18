@@ -30,6 +30,23 @@ const likeModel = {
 
     return result.rows[0]?.total || 0;
   },
+
+  hasViewerLikedImage: async ({ userId, imageId }) => {
+    if (!userId) {
+      return false;
+    }
+
+    const result = await pool.query(
+      `SELECT EXISTS (
+			 SELECT 1
+			 FROM likes
+			 WHERE user_id = $1 AND image_id = $2
+		 ) AS liked`,
+      [userId, imageId],
+    );
+
+    return Boolean(result.rows[0]?.liked);
+  },
 };
 
 module.exports = likeModel;

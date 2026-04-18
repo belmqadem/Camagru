@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="csrf-token" content="{{CSRF_TOKEN}}" />
+    <meta name="app-url" content="{{APP_URL}}" />
+    <meta property="og:image" content="{{OG_IMAGE}}" />
+    <meta property="og:title" content="{{OG_TITLE}}" />
+    <meta property="og:url" content="{{OG_URL}}" />
+    <title>Photo Detail | Camagru</title>
+    <link rel="stylesheet" href="/public/assets/fontawesome/css/all.min.css" />
+    <link rel="stylesheet" href="/public/css/main.css" />
+    <link rel="stylesheet" href="/public/css/image.css" />
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="site-header">
+        <div class="container nav-wrap">
+          <a class="brand" href="/gallery">
+            <span class="brand-logo-wrap">
+              <img
+                src="/public/assets/camagru-logo.png"
+                alt="Camagru Logo"
+                class="logo"
+              />
+            </span>
+          </a>
+          <nav class="site-nav">{{NAV_AUTH}}</nav>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <div
+          id="imageDetailPage"
+          class="container image-detail-shell"
+          data-image-id="{{IMAGE_ID}}"
+          data-can-interact="{{CAN_INTERACT}}"
+        >
+          <a class="back-link" href="{{BACK_LINK}}">&larr; Back to Gallery</a>
+
+          <section class="image-detail-grid">
+            <article class="image-column">
+              <div class="image-frame">
+                <img
+                  class="detail-image"
+                  src="/public/uploads/{{IMAGE_FILENAME}}"
+                  alt="Photo by {{AUTHOR_USERNAME}}"
+                />
+              </div>
+
+              <div class="image-meta">
+                <span class="author-avatar">{{AUTHOR_AVATAR_INITIAL}}</span>
+                <div class="post-author-meta">
+                  <span class="post-username">{{AUTHOR_USERNAME}}</span>
+                  <time class="post-date" datetime="{{POST_DATE_ISO}}"
+                    >{{POST_DATE}}</time
+                  >
+                </div>
+              </div>
+
+              <div class="action-bar detail-action-bar">
+                <div class="action-left">
+                  {{LIKE_BUTTON}}
+                  <span
+                    id="detailLikeCount"
+                    class="action-count detail-like-count"
+                    >{{LIKE_COUNT}}</span
+                  >
+                  <button
+                    id="detailCommentJump"
+                    class="icon-btn comment-jump"
+                    type="button"
+                    aria-label="Jump to comments"
+                  >
+                    <i class="fa-regular fa-comment" aria-hidden="true"></i>
+                  </button>
+                  <span
+                    id="detailCommentCount"
+                    class="action-count detail-comment-count"
+                    >{{COMMENT_COUNT}}</span
+                  >
+                </div>
+                <div class="action-right">{{SHARE_BUTTONS}}</div>
+              </div>
+            </article>
+
+            <aside class="comments-panel">
+              <h1 class="comments-panel-title">
+                Comments (<span id="detailCommentsTitleCount"
+                  >{{COMMENTS_TITLE_COUNT}}</span
+                >)
+              </h1>
+
+              <ul id="detailCommentsList" class="detail-comments-list">
+                {{COMMENTS_ITEMS}}
+              </ul>
+
+              <div class="detail-comment-composer">{{COMMENT_COMPOSER}}</div>
+            </aside>
+          </section>
+        </div>
+      </main>
+
+      <footer class="site-footer">
+        <p>Camagru © 2025</p>
+      </footer>
+    </div>
+
+    <script src="/public/js/image.js" defer></script>
+  </body>
+</html>
