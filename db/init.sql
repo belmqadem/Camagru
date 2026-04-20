@@ -53,5 +53,5 @@ INSERT INTO overlays (filename) VALUES
   ('glasses-blue.png'),
   ('glasses-colors.png'),
   ('hair.png'),
-	('men-hat.png'),
-	('women-hat.png');
+  ('men-hat.png'),
+  ('women-hat.png');

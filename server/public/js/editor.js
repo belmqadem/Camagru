@@ -34,6 +34,22 @@
   const MIN_SCALE = 0.2;
   const MAX_SCALE = 2;
 
+  const formatDate = (value) => {
+    const date = new Date(value);
+    if (isNaN(date.getTime())) return "";
+    return date
+      .toLocaleString("en-GB", {
+        timeZone: "Africa/Casablanca",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+      .replace(",", "");
+  };
+
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
   const clearUploadedPreview = () => {
@@ -466,7 +482,7 @@
     meta.className = "user-image-meta";
 
     const createdAt = document.createElement("span");
-    createdAt.textContent = new Date().toLocaleString();
+    createdAt.textContent = formatDate(new Date());
 
     const actions = document.createElement("div");
     actions.className = "image-card-actions";

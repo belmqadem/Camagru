@@ -97,17 +97,20 @@
     return raw ? raw.charAt(0).toUpperCase() : "U";
   };
 
-  const formatPostDate = (value) => {
+  const formatDate = (value) => {
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-      return "Recently";
-    }
-
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
+    if (isNaN(date.getTime())) return "";
+    return date
+      .toLocaleString("en-GB", {
+        timeZone: "Africa/Casablanca",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+      .replace(",", "");
   };
 
   const toIsoDate = (value) => {
@@ -387,7 +390,7 @@
     const commentsMarkup = renderPreviewComments(image.comments);
     const avatarInitial = getAvatarInitial(authorUsername);
     const avatarColor = getAvatarColor(authorUsername);
-    const postDate = formatPostDate(image.created_at);
+    const postDate = formatDate(image.created_at);
     const postDateIso = toIsoDate(image.created_at);
 
     return `

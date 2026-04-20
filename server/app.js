@@ -33,12 +33,32 @@ if (!sessionSecret) {
 
 const express = require("express");
 const session = require("express-session");
+const helmet = require("helmet");
 const pgSession = require("connect-pg-simple")(session);
 const path = require("path");
 const { pool, initDb } = require("./core/db");
 const requireAuth = require("./middlewares/auth.middleware");
 
 const app = express();
+
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
+
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        imgSrc: ["'self'", "data:", "blob:"],
+      },
+    },
+  }),
+);
+
+app.get("/health", (_req, res) => {
+  res.send("OK");
+});
 
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
@@ -87,11 +107,14 @@ app.use("/public", express.static(path.join(__dirname, "public")));
 app.use(
   session({
     store: new pgSession({ pool, tableName: "sessions" }),
+    name: "camagru.sid",
     secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
     cookie: {
       httpOnly: true, // XSS protection
+      secure: process.env.NODE_ENV === "production", // HTTPS only in production
+      sameSite: "lax", // CSRF protection
       maxAge: 1000 * 60 * 60 * 24, // 1 day
     },
   }),
@@ -105,10 +128,6 @@ app.use((req, res, next) => {
 
 app.get("/", (req, res) => {
   res.redirect("/gallery");
-});
-
-app.get("/health", (_req, res) => {
-  res.send("OK");
 });
 
 // Routes

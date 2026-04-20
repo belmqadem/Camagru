@@ -6,16 +6,14 @@ const fs = require("fs");
 const tempUploadDir = path.join(__dirname, "../public/uploads/tmp");
 const allowedMimeTypes = new Set(["image/jpeg", "image/png"]);
 
+fs.mkdirSync(tempUploadDir, { recursive: true });
+
 const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    fs.mkdir(tempUploadDir, { recursive: true }, (error) => {
-      cb(error, tempUploadDir);
-    });
-  },
+  destination: (_req, _file, cb) => cb(null, tempUploadDir),
   filename: (_req, file, cb) => {
     const hash = crypto.randomBytes(16).toString("hex");
-    const extension = file.mimetype === "image/png" ? ".png" : ".jpg";
-    cb(null, `${hash}${extension}`);
+    const ext = file.mimetype === "image/png" ? ".png" : ".jpg";
+    cb(null, `${hash}${ext}`);
   },
 });
 

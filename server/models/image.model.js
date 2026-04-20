@@ -86,6 +86,44 @@ const imageModel = {
 
     return result.rows[0] || null;
   },
+
+  create: async ({ userId, filename }) => {
+    const result = await pool.query(
+      `INSERT INTO images (user_id, filename)
+     VALUES ($1, $2)
+     RETURNING id`,
+      [userId, filename],
+    );
+    return result.rows[0];
+  },
+
+  findByUserId: async (userId) => {
+    const result = await pool.query(
+      `SELECT id, filename, created_at
+     FROM images
+     WHERE user_id = $1
+     ORDER BY created_at DESC`,
+      [userId],
+    );
+    return result.rows;
+  },
+
+  findByIdAndUser: async (id, userId) => {
+    const result = await pool.query(
+      `SELECT id, filename
+     FROM images
+     WHERE id = $1 AND user_id = $2`,
+      [id, userId],
+    );
+    return result.rows[0] || null;
+  },
+
+  deleteById: async (id, userId) => {
+    await pool.query("DELETE FROM images WHERE id = $1 AND user_id = $2", [
+      id,
+      userId,
+    ]);
+  },
 };
 
 module.exports = imageModel;

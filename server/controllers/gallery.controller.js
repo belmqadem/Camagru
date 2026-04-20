@@ -6,6 +6,8 @@ const commentModel = require("../models/comment.model");
 const { generate } = require("../core/csrf");
 const { sendMail } = require("../core/mailer");
 const logger = require("../core/logger");
+const { escapeHtml, formatDate, isAjaxRequest } = require("../utils/helpers");
+const renderNavAuth = require("../utils/renderNavAuth");
 
 const PAGE_SIZE = 5;
 const MAX_COMMENT_LENGTH = 500;
@@ -25,13 +27,6 @@ const imageTemplate = fs.readFileSync(
   path.join(__dirname, "../views/image.html"),
   "utf8",
 );
-
-const escapeHtml = (value) =>
-  String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;");
 
 const parsePage = (value) => {
   const parsed = Number.parseInt(value, 10);
@@ -55,19 +50,6 @@ const normalizePath = (value) => {
     .split("?")[0]
     .replace(/\/+$/, "");
   return raw || "/";
-};
-
-const formatPostDate = (value) => {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "Recently";
-  }
-
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
 };
 
 const toIsoDate = (value) => {
@@ -131,7 +113,7 @@ const renderImageComments = (comments) => {
       const authorUsername = String(comment.author_username || "User");
       const avatarInitial = getAvatarInitial(authorUsername);
       const commentDateIso = toIsoDate(comment.created_at);
-      const commentDate = formatPostDate(comment.created_at);
+      const commentDate = formatDate(comment.created_at);
 
       return `
         <li class="detail-comment-item">
@@ -205,7 +187,7 @@ const renderImageDetailHTML = ({
   const appUrl = getAppUrl();
   const commentsCount = comments.length;
   const postDateIso = toIsoDate(image.created_at);
-  const postDate = formatPostDate(image.created_at);
+  const postDate = formatDate(image.created_at);
   const authorAvatarInitial = getAvatarInitial(image.author_username);
   const safeImageId = String(image.id);
   const safeFilename = String(image.filename || "");
@@ -285,59 +267,12 @@ const serializeImageForJson = (image) => ({
     : [],
 });
 
-const isAjaxRequest = (req) => {
-  const requestedWith = String(req.get("x-requested-with") || "").toLowerCase();
-  const accept = String(req.get("accept") || "").toLowerCase();
-
-  return (
-    requestedWith === "xmlhttprequest" || accept.includes("application/json")
-  );
-};
-
 const sendError = (req, res, status, message) => {
   if (isAjaxRequest(req)) {
     return res.status(status).json({ error: message });
   }
 
   return res.status(status).send(message);
-};
-
-const renderNavAuth = ({ currentUser, csrfToken, currentPath }) => {
-  const safePath = normalizePath(currentPath);
-  const isActive = (path) => safePath === normalizePath(path);
-
-  if (!currentUser) {
-    return [
-      `<a class="nav-link nav-login-link ${isActive("/login") ? "active" : ""}" href="/login">Login</a>`,
-      `<a class="nav-link nav-register-btn ${isActive("/register") ? "active" : ""}" href="/register">Register</a>`,
-    ].join("");
-  }
-
-  const username = escapeHtml(currentUser.username || "User");
-
-  return `
-    <a class="nav-link nav-icon-link nav-camera ${isActive("/edit") ? "active" : ""}" href="/edit" aria-label="Open editor">
-      <i class="fa-solid fa-camera" aria-hidden="true"></i>
-    </a>
-    <details class="profile-menu">
-      <summary class="nav-link nav-icon-link nav-profile-toggle ${isActive("/user/profile") ? "active" : ""}" aria-label="Open profile menu">
-        <i class="fa-solid fa-user" aria-hidden="true"></i>
-      </summary>
-      <div class="profile-dropdown">
-        <a class="profile-dropdown-link" href="/user/profile" title="${username}">
-          <i class="fa-solid fa-user" aria-hidden="true"></i>
-          <span class="profile-dropdown-username">${username}</span>
-        </a>
-        <form class="profile-dropdown-form" method="POST" action="/logout">
-          <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-          <button type="submit" class="profile-dropdown-logout">
-            <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
-            <span>Logout</span>
-          </button>
-        </form>
-      </div>
-    </details>
-  `;
 };
 
 const renderGalleryHTML = ({
@@ -379,7 +314,7 @@ const renderGalleryHTML = ({
 
       const avatarColor = getAvatarColor(image.author_username);
       const avatarInitial = getAvatarInitial(image.author_username);
-      const postDate = formatPostDate(image.created_at);
+      const postDate = formatDate(image.created_at);
       const postDateIso = toIsoDate(image.created_at);
 
       return `
@@ -630,11 +565,8 @@ exports.postComment = async (req, res) => {
       "New comment on your Camagru image",
       `
 			<h2>New comment on your image</h2>
-			<p><strong>${escapeHtml(commenter)}</strong> commented on <strong>${escapeHtml(
-        image.filename,
-      )}</strong>.</p>
-			<p>Comment: ${escapeHtml(content)}</p>
-			<a href="${process.env.APP_URL}/gallery?page=${page}#image-${image.id}">View in gallery</a>
+			<p><strong>${escapeHtml(commenter)}</strong> commented with <strong>${escapeHtml(content)}</strong> on your image.</p>
+			<a href="${process.env.APP_URL}/gallery/${image.id}">View image</a>
 		`,
     ).catch((error) => {
       logger.error("Failed to send comment notification email", error);

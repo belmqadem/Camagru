@@ -1,5 +1,4 @@
 const bcrypt = require("bcrypt");
-const crypto = require("crypto");
 const userModel = require("../models/user.model");
 const { sendMail } = require("../core/mailer");
 const { generate } = require("../core/csrf");
@@ -10,9 +9,9 @@ const {
   forgotHTML,
   resetHTML,
 } = require("../views/auth.templates");
+const tokens = require("../core/tokens");
+const { EMAIL_REGEX, PASSWORD_REGEX, escapeHtml } = require("../utils/helpers");
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
 const VERIFY_TOKEN_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
 const FORGOT_PASSWORD_MIN_RESPONSE_MS = 300;
 const normalizeEmail = (email) =>
@@ -20,12 +19,6 @@ const normalizeEmail = (email) =>
     .trim()
     .toLowerCase();
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const escapeHtml = (value) =>
-  String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 const getCurrentPath = (req) => `${req.baseUrl || ""}${req.path || ""}` || "/";
 
 const getLoginPageMessage = (query) => {
@@ -114,18 +107,20 @@ exports.postRegister = async (req, res) => {
       .send(renderRegisterPage(req, "Username already taken"));
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const verifyToken = crypto.randomBytes(32).toString("hex");
   const verifyExpires = new Date(Date.now() + VERIFY_TOKEN_TTL_MS);
+
+  const rawToken = tokens.generate();
+  const hashedToken = tokens.hash(rawToken);
 
   await userModel.create({
     username: normalizedUsername,
     email: normalizedEmail,
     passwordHash,
-    verifyToken,
+    verifyToken: hashedToken,
     verifyExpires,
   });
 
-  const link = `${process.env.APP_URL}/verify?token=${verifyToken}`;
+  const link = `${process.env.APP_URL}/verify?token=${rawToken}`;
   await sendMail(
     normalizedEmail,
     "Confirm your Camagru account",
@@ -146,7 +141,9 @@ exports.getVerify = async (req, res) => {
       .status(400)
       .send(renderLoginPage(req, "Missing verification token.", "error"));
 
-  const user = await userModel.findByVerifyToken(token);
+  const hashedToken = tokens.hash(req.query.token);
+
+  const user = await userModel.findByVerifyToken(hashedToken);
   if (!user)
     return res
       .status(400)
@@ -185,13 +182,22 @@ exports.postLogin = async (req, res) => {
   if (!match)
     return res.status(401).send(renderLoginPage(req, "Invalid credentials"));
 
-  req.session.userId = user.id;
-  req.session.user = {
-    id: user.id,
-    username: user.username,
-  };
+  await new Promise((resolve, reject) => {
+    req.session.regenerate((err) => {
+      if (err) {
+        reject(err);
+        return;
+      }
 
-  res.redirect("/gallery");
+      resolve();
+    });
+  });
+
+  req.session.userId = user.id;
+  req.session.user = { id: user.id, username: user.username };
+  req.session.csrfToken = undefined; // force new CSRF token
+
+  return res.redirect("/gallery");
 };
 
 exports.logout = (req, res) => {
@@ -200,7 +206,7 @@ exports.logout = (req, res) => {
       return res
         .status(500)
         .send(renderLoginPage(req, "Could not log out", "error"));
-    res.clearCookie("connect.sid");
+    res.clearCookie("camagru.sid");
     return res.redirect("/login?logged_out=1");
   });
 };
@@ -219,12 +225,13 @@ exports.postForgot = async (req, res) => {
 
   const user = await userModel.findByEmail(normalizedEmail);
 
-  const token = crypto.randomBytes(32).toString("hex");
+  const rawToken = tokens.generate();
+  const hashedToken = tokens.hash(rawToken);
   const expires = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
-  const link = `${process.env.APP_URL}/reset-password?token=${token}`;
+  const link = `${process.env.APP_URL}/reset-password?token=${rawToken}`;
 
   if (user) {
-    await userModel.setResetToken(user.id, token, expires);
+    await userModel.setResetToken(user.id, hashedToken, expires);
     void sendMail(
       normalizedEmail,
       "Reset your Camagru password",
@@ -257,7 +264,8 @@ exports.getReset = async (req, res) => {
   if (!token)
     return res.status(400).send(renderResetPage(req, "", "Missing token"));
 
-  const user = await userModel.findByResetToken(token);
+  const hashedToken = tokens.hash(token);
+  const user = await userModel.findByResetToken(hashedToken);
   if (!user)
     return res
       .status(400)
@@ -275,7 +283,8 @@ exports.postReset = async (req, res) => {
       .status(400)
       .send(renderResetPage(req, token, "Password is required"));
 
-  const user = await userModel.findByResetToken(token);
+  const hashedToken = tokens.hash(token);
+  const user = await userModel.findByResetToken(hashedToken);
   if (!user)
     return res
       .status(400)

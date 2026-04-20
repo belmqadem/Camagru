@@ -1,26 +1,19 @@
 const fs = require("fs");
 const path = require("path");
 const bcrypt = require("bcrypt");
-const crypto = require("crypto");
 const userModel = require("../models/user.model");
 const { generate } = require("../core/csrf");
 const { sendMail } = require("../core/mailer");
+const tokens = require("../core/tokens");
+const { EMAIL_REGEX, PASSWORD_REGEX, escapeHtml } = require("../utils/helpers");
+const renderNavAuth = require("../utils/renderNavAuth");
 
 const profileTemplate = fs.readFileSync(
   path.join(__dirname, "../views/profile.html"),
   "utf8",
 );
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
 const VERIFY_TOKEN_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
-
-const escapeHtml = (value) =>
-  String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;");
 
 const normalizeUsername = (value) => String(value || "").trim();
 const normalizeEmail = (value) =>
@@ -78,6 +71,7 @@ const getStatusMessage = (query = {}) => {
     password_weak:
       "New password must be at least 8 characters with 1 uppercase letter and 1 number.",
     password_mismatch: "New password and confirmation do not match.",
+	password_same: "New password must be different from the current password.",
     email_send_failed:
       "Could not send verification email to the new address. Profile was not updated.",
   };
@@ -87,6 +81,7 @@ const getStatusMessage = (query = {}) => {
       "current_password_invalid",
       "password_weak",
       "password_mismatch",
+	  "password_same",
     ]);
 
     return {
@@ -101,44 +96,6 @@ const getStatusMessage = (query = {}) => {
     type: "",
     text: "",
   };
-};
-
-const renderNavAuth = ({ sessionUser, csrfToken, currentPath }) => {
-  const safePath = normalizePath(currentPath);
-  const isActive = (path) => safePath === normalizePath(path);
-
-  if (!sessionUser) {
-    return [
-      `<a class="nav-link nav-login-link ${isActive("/login") ? "active" : ""}" href="/login">Login</a>`,
-      `<a class="nav-link nav-register-btn ${isActive("/register") ? "active" : ""}" href="/register">Register</a>`,
-    ].join("");
-  }
-
-  const username = escapeHtml(sessionUser.username || "User");
-
-  return `
-    <a class="nav-link nav-icon-link nav-camera ${isActive("/edit") ? "active" : ""}" href="/edit" aria-label="Open editor">
-      <i class="fa-solid fa-camera" aria-hidden="true"></i>
-    </a>
-    <details class="profile-menu">
-      <summary class="nav-link nav-icon-link nav-profile-toggle ${isActive("/user/profile") ? "active" : ""}" aria-label="Open profile menu">
-        <i class="fa-solid fa-user" aria-hidden="true"></i>
-      </summary>
-      <div class="profile-dropdown">
-        <a class="profile-dropdown-link" href="/user/profile" title="${username}">
-          <i class="fa-solid fa-user" aria-hidden="true"></i>
-          <span class="profile-dropdown-username">${username}</span>
-        </a>
-        <form class="profile-dropdown-form" method="POST" action="/logout">
-          <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-          <button type="submit" class="profile-dropdown-logout">
-            <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
-            <span>Logout</span>
-          </button>
-        </form>
-      </div>
-    </details>
-  `;
 };
 
 const renderProfilePage = ({
@@ -164,7 +121,7 @@ const renderProfilePage = ({
     .replace(/{{CSRF_TOKEN}}/g, escapeHtml(csrfToken))
     .replace(
       "{{NAV_AUTH}}",
-      renderNavAuth({ sessionUser, csrfToken, currentPath }),
+      renderNavAuth({ currentUser: sessionUser, csrfToken, currentPath }),
     )
     .replace(/{{USERNAME_VALUE}}/g, escapeHtml(user.username || ""))
     .replace(/{{EMAIL_VALUE}}/g, escapeHtml(user.email || ""))
@@ -231,9 +188,10 @@ exports.postProfileInfo = async (req, res) => {
   const isEmailChanged = currentEmail !== email;
 
   if (isEmailChanged) {
-    const verifyToken = crypto.randomBytes(32).toString("hex");
+    const rawToken = tokens.generate();
+    const hashedToken = tokens.hash(rawToken);
     const verifyExpires = new Date(Date.now() + VERIFY_TOKEN_TTL_MS);
-    const verifyLink = `${process.env.APP_URL}/verify?token=${verifyToken}`;
+    const verifyLink = `${process.env.APP_URL}/verify?token=${rawToken}`;
 
     try {
       await sendMail(
@@ -252,7 +210,7 @@ exports.postProfileInfo = async (req, res) => {
     await userModel.updateProfile(user.id, {
       username,
       email,
-      verifyToken,
+      verifyToken: hashedToken,
       verifyExpires,
     });
 
@@ -298,6 +256,10 @@ exports.postProfilePassword = async (req, res) => {
 
   if (newPassword !== confirmPassword) {
     return res.redirect("/user/profile?error=password_mismatch");
+  }
+
+  if (currentPassword === newPassword) {
+	return res.redirect("/user/profile?error=password_same");
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 12);

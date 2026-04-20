@@ -8,7 +8,7 @@ const generate = (req) => {
   return req.session.csrfToken;
 };
 
-// Use this as middleware on every POST route
+// Use this as middleware on every state-changing route (POST, DELETE, PATCH)
 const verify = (req, res, next) => {
   const bodyToken =
     req.body && typeof req.body === "object" ? req.body._csrf : undefined;

@@ -5,6 +5,9 @@ const sharp = require("sharp");
 const { pool } = require("../core/db");
 const { generate } = require("../core/csrf");
 const overlayModel = require("../models/overlay.model");
+const imageModel = require("../models/image.model");
+const { escapeHtml, formatDate } = require("../utils/helpers");
+const renderNavAuth = require("../utils/renderNavAuth");
 
 const uploadsDir = path.join(__dirname, "../public/uploads");
 const overlaysDir = path.join(__dirname, "../public/overlays");
@@ -13,22 +16,10 @@ const editTemplate = fs.readFileSync(
   "utf8",
 );
 
-const escapeHtml = (value) =>
-  String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;");
-
 const toHttpError = (status, message) => {
   const error = new Error(message);
   error.status = status;
   return error;
-};
-
-const formatDate = (value) => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
 };
 
 const normalizePath = (value) => {
@@ -36,44 +27,6 @@ const normalizePath = (value) => {
     .split("?")[0]
     .replace(/\/+$/, "");
   return raw || "/";
-};
-
-const renderNavAuth = ({ user, csrfToken, currentPath }) => {
-  const safePath = normalizePath(currentPath);
-  const isActive = (path) => safePath === normalizePath(path);
-
-  if (!user) {
-    return [
-      `<a class="nav-link nav-login-link ${isActive("/login") ? "active" : ""}" href="/login">Login</a>`,
-      `<a class="nav-link nav-register-btn ${isActive("/register") ? "active" : ""}" href="/register">Register</a>`,
-    ].join("");
-  }
-
-  const username = escapeHtml(user.username || "User");
-
-  return `
-    <a class="nav-link nav-icon-link nav-camera ${isActive("/edit") ? "active" : ""}" href="/edit" aria-label="Open editor">
-      <i class="fa-solid fa-camera" aria-hidden="true"></i>
-    </a>
-    <details class="profile-menu">
-      <summary class="nav-link nav-icon-link nav-profile-toggle ${isActive("/user/profile") ? "active" : ""}" aria-label="Open profile menu">
-        <i class="fa-solid fa-user" aria-hidden="true"></i>
-      </summary>
-      <div class="profile-dropdown">
-        <a class="profile-dropdown-link" href="/user/profile" title="${username}">
-          <i class="fa-solid fa-user" aria-hidden="true"></i>
-          <span class="profile-dropdown-username">${username}</span>
-        </a>
-        <form class="profile-dropdown-form" method="POST" action="/logout">
-          <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-          <button type="submit" class="profile-dropdown-logout">
-            <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
-            <span>Logout</span>
-          </button>
-        </form>
-      </div>
-    </details>
-  `;
 };
 
 const parseOverlayPlacement = (body, imageWidth, imageHeight) => {
@@ -180,27 +133,24 @@ const renderEditHtml = ({
   return editTemplate
     .replace(/{{CSRF_TOKEN}}/g, escapeHtml(csrfToken))
     .replace(/{{USERNAME}}/g, escapeHtml(user?.username || "User"))
-    .replace("{{NAV_AUTH}}", renderNavAuth({ user, csrfToken, currentPath }))
+    .replace(
+      "{{NAV_AUTH}}",
+      renderNavAuth({ currentUser: user, csrfToken, currentPath }),
+    )
     .replace("{{OVERLAY_ITEMS}}", overlaysMarkup)
     .replace("{{USER_IMAGES}}", imagesMarkup);
 };
 
 exports.getEditPage = async (req, res) => {
-  const [overlays, userImagesResult] = await Promise.all([
+  const [overlays, userImages] = await Promise.all([
     overlayModel.findAll(),
-    pool.query(
-      `SELECT id, filename, created_at
-			 FROM images
-			 WHERE user_id = $1
-			 ORDER BY created_at DESC`,
-      [req.session.userId],
-    ),
+    imageModel.findByUserId(req.session.userId),
   ]);
 
   res.send(
     renderEditHtml({
       overlays,
-      userImages: userImagesResult.rows,
+      userImages,
       csrfToken: generate(req),
       user: req.session.user,
       currentPath: normalizePath(req.baseUrl),
@@ -264,17 +214,15 @@ exports.postCapture = async (req, res) => {
       .jpeg({ quality: 90 })
       .toFile(outputPath);
 
-    const insertResult = await pool.query(
-      `INSERT INTO images (user_id, filename)
-			 VALUES ($1, $2)
-			 RETURNING id`,
-      [req.session.userId, outputFilename],
-    );
+    const inserted = await imageModel.create({
+      userId: req.session.userId,
+      filename: outputFilename,
+    });
 
     return res.json({
       success: true,
       filename: outputFilename,
-      imageId: insertResult.rows[0]?.id || null,
+      imageId: inserted?.id || null,
     });
   } catch (error) {
     await fs.promises.unlink(outputPath).catch(() => {});
@@ -290,15 +238,7 @@ exports.deleteImage = async (req, res) => {
     throw toHttpError(400, "Invalid image id");
   }
 
-  const imageResult = await pool.query(
-    `SELECT id, filename
-		 FROM images
-		 WHERE id = $1
-			 AND user_id = $2`,
-    [imageId, req.session.userId],
-  );
-
-  const image = imageResult.rows[0];
+  const image = await imageModel.findByIdAndUser(imageId, req.session.userId);
   if (!image) {
     throw toHttpError(404, "Image not found");
   }
@@ -311,12 +251,7 @@ exports.deleteImage = async (req, res) => {
     }
   });
 
-  await pool.query(
-    `DELETE FROM images
-		 WHERE id = $1
-			 AND user_id = $2`,
-    [imageId, req.session.userId],
-  );
+  await imageModel.deleteById(imageId, req.session.userId);
 
   return res.json({ success: true });
 };

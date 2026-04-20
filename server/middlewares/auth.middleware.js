@@ -1,11 +1,4 @@
-const isAjaxRequest = (req) => {
-  const requestedWith = String(req.get("x-requested-with") || "").toLowerCase();
-  const accept = String(req.get("accept") || "").toLowerCase();
-
-  return (
-    requestedWith === "xmlhttprequest" || accept.includes("application/json")
-  );
-};
+const { isAjaxRequest } = require("../utils/helpers");
 
 module.exports = (req, res, next) => {
   if (!req.session.userId) {

@@ -2,12 +2,22 @@ const { pool } = require("../core/db");
 
 const likeModel = {
   toggle: async ({ userId, imageId }) => {
-    const existing = await pool.query(
-      "SELECT id FROM likes WHERE user_id = $1 AND image_id = $2",
+    const result = await pool.query(
+      `WITH ins AS (
+      INSERT INTO likes (user_id, image_id)
+      VALUES ($1, $2)
+      ON CONFLICT (user_id, image_id) DO NOTHING
+      RETURNING id
+    )
+    SELECT
+      CASE WHEN EXISTS (SELECT 1 FROM ins)
+        THEN 'liked'
+        ELSE 'unliked'
+      END AS action`,
       [userId, imageId],
     );
 
-    if (existing.rows.length > 0) {
+    if (result.rows[0].action === "unliked") {
       await pool.query(
         "DELETE FROM likes WHERE user_id = $1 AND image_id = $2",
         [userId, imageId],
@@ -15,10 +25,6 @@ const likeModel = {
       return { liked: false };
     }
 
-    await pool.query("INSERT INTO likes (user_id, image_id) VALUES ($1, $2)", [
-      userId,
-      imageId,
-    ]);
     return { liked: true };
   },
 

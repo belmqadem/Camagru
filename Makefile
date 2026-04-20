@@ -19,7 +19,10 @@ logs-app:
 down:
 	@docker compose down
 
+down-volumes:
+	@docker compose down --volumes
+
 psql:
 	@docker compose exec db sh -lc 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
 
-.PHONY: up build logs logs-db logs-app down psql restart-app
+.PHONY: up build logs logs-db logs-app down psql restart-app down-volumes

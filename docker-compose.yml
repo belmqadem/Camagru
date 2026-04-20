@@ -1,11 +1,14 @@
 services:
   nginx:
     image: nginx:alpine
+    environment:
+      TZ: Africa/Casablanca
     ports:
       - "8080:80"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
       - ./server/public:/var/www/public
+      - uploads_data:/var/www/public/uploads
     depends_on:
       app:
         condition: service_healthy
@@ -21,9 +24,12 @@ services:
   app:
     build: ./server
     env_file: .env
+    environment:
+      TZ: Africa/Casablanca
     volumes:
       - ./server:/app
       - /app/node_modules
+      - uploads_data:/app/public/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -43,6 +49,7 @@ services:
   db:
     image: postgres:15-alpine
     environment:
+      TZ: Africa/Casablanca
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
@@ -59,9 +66,12 @@ services:
   mailhog:
     image: mailhog/mailhog
     platform: linux/amd64
+    environment:
+      TZ: Africa/Casablanca
     ports:
       - "1025:1025" # SMTP
       - "8025:8025" # Web UI to read emails
 
 volumes:
   pgdata:
+  uploads_data:

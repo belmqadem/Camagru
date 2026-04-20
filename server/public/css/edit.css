@@ -16,6 +16,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr);
   gap: 1rem;
+  align-items: start;
 }
 
 .panel {
@@ -24,6 +25,7 @@
   background: var(--color-surface);
   box-shadow: var(--shadow);
   padding: clamp(0.8rem, 1.5vw, 1rem);
+  min-width: 0;
 }
 
 .panel h2 {
@@ -36,24 +38,35 @@
   border: 1px dashed var(--color-border);
   border-radius: 12px;
   padding: 0.65rem;
-  min-height: 340px;
+  min-height: clamp(240px, 52vw, 340px);
   display: grid;
   place-items: center;
   background: #fcfcfc;
+  overflow: hidden;
 }
 
 .camera-wrap {
   position: relative;
   width: 100%;
+  min-width: 0;
 }
 
 #camera,
 #uploadedPhotoPreview {
   width: 100%;
+  max-height: 65vh;
   display: block;
   border: 1px solid var(--color-border);
   border-radius: 10px;
   background: #f8f9fa;
+}
+
+#camera {
+  object-fit: cover;
+}
+
+#uploadedPhotoPreview {
+  object-fit: contain;
 }
 
 #liveOverlayPreview {
@@ -84,6 +97,11 @@
   display: grid;
   gap: 0.4rem;
   color: var(--color-text-muted);
+}
+
+.fallback-upload input[type="file"] {
+  width: 100%;
+  min-width: 0;
 }
 
 .controls {
@@ -130,6 +148,8 @@
 .overlay-transform-controls .hint {
   font-size: 0.82rem;
   color: var(--color-text-muted);
+  flex: 1;
+  min-width: 0;
 }
 
 #overlayResetButton {
@@ -190,6 +210,7 @@
   margin-top: 0.8rem;
   display: grid;
   gap: 0.7rem;
+  min-width: 0;
 }
 
 .user-image-card {
@@ -331,12 +352,20 @@
 }
 
 @media (max-width: 720px) {
+  .page-main .container {
+    width: min(var(--max-width), calc(100% - 1rem));
+  }
+
+  .panel {
+    padding: 0.72rem;
+  }
+
   .panel h2 {
     font-size: 1.08rem;
   }
 
   .capture-stage {
-    min-height: 250px;
+    min-height: 230px;
     padding: 0.5rem;
   }
 
@@ -352,6 +381,15 @@
   .overlay-transform-controls .row {
     flex-wrap: wrap;
     gap: 0.35rem;
+  }
+
+  .overlay-transform-controls .row .hint {
+    width: 100%;
+  }
+
+  #overlayResetButton {
+    width: 100%;
+    text-align: center;
   }
 
   .overlay-strip {
@@ -408,6 +446,10 @@
 }
 
 @media (max-width: 420px) {
+  .panel {
+    border-radius: 10px;
+  }
+
   .edit-intro h1 {
     font-size: 1.35rem;
   }
@@ -417,7 +459,7 @@
   }
 
   .capture-stage {
-    min-height: 220px;
+    min-height: 210px;
   }
 
   .overlay-item {

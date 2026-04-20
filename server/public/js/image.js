@@ -71,10 +71,26 @@
     return '<i class="fa-regular fa-heart" aria-hidden="true"></i>';
   };
 
-  const formatRelativeTime = (value) => {
+  const formatDate = (value) => {
+    const date = new Date(value);
+    if (isNaN(date.getTime())) return "";
+    return date
+      .toLocaleString("en-GB", {
+        timeZone: "Africa/Casablanca",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+      .replace(",", "");
+  };
+
+  const formatCommentAge = (value) => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) {
-      return "just now";
+      return "";
     }
 
     const elapsedSeconds = Math.max(
@@ -82,34 +98,32 @@
       Math.floor((Date.now() - date.getTime()) / 1000),
     );
 
-    if (elapsedSeconds < 10) {
-      return "just now";
-    }
-
     if (elapsedSeconds < 60) {
-      return `${elapsedSeconds} seconds ago`;
+      return "now";
     }
 
     const elapsedMinutes = Math.floor(elapsedSeconds / 60);
     if (elapsedMinutes < 60) {
-      return elapsedMinutes === 1
-        ? "1 minute ago"
-        : `${elapsedMinutes} minutes ago`;
+      return `${elapsedMinutes} min ago`;
     }
 
     const elapsedHours = Math.floor(elapsedMinutes / 60);
     if (elapsedHours < 24) {
-      return elapsedHours === 1 ? "1 hour ago" : `${elapsedHours} hours ago`;
+      return `${elapsedHours} h ago`;
     }
 
     const elapsedDays = Math.floor(elapsedHours / 24);
-    return elapsedDays === 1 ? "1 day ago" : `${elapsedDays} days ago`;
+    if (elapsedDays < 7) {
+      return `${elapsedDays} d ago`;
+    }
+
+    return formatDate(date);
   };
 
-  const refreshRelativeTimes = () => {
-    document.querySelectorAll("[data-relative-time]").forEach((node) => {
-      const value = node.getAttribute("data-relative-time") || "";
-      node.textContent = formatRelativeTime(value);
+  const refreshCommentTimes = () => {
+    document.querySelectorAll(".detail-comment-time").forEach((node) => {
+      const value = node.getAttribute("datetime") || node.dateTime || "";
+      node.textContent = formatCommentAge(value);
     });
   };
 
@@ -296,8 +310,7 @@
     const time = document.createElement("time");
     time.className = "detail-comment-time";
     time.dateTime = createdAt;
-    time.setAttribute("data-relative-time", createdAt);
-    time.textContent = formatRelativeTime(createdAt);
+    time.textContent = formatCommentAge(createdAt);
 
     contentWrap.append(text, time);
     item.append(avatar, contentWrap);
@@ -418,6 +431,6 @@
     window.open(shareUrl, "_blank", "noopener");
   });
 
-  refreshRelativeTimes();
-  window.setInterval(refreshRelativeTimes, 60000);
+  refreshCommentTimes();
+  window.setInterval(refreshCommentTimes, 60000);
 })();
