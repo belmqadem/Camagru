@@ -69,6 +69,10 @@ app.use((req, res, next) => {
   res.locals.requestErrorMessage = null;
 
   res.on("finish", () => {
+    if (req.path === "/health") {
+      return;
+    }
+
     const durationMs = Number((process.hrtime.bigint() - startedAt) / 1000000n);
     const result =
       res.statusCode >= 500
