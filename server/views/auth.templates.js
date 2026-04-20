@@ -39,6 +39,11 @@ const authPageHTML = ({
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="csrf-token" content="{{CSRF_TOKEN}}" />
+	<link rel="icon" type="image/png" href="/public/assets/favicon/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/public/assets/favicon/favicon.svg" />
+    <link rel="shortcut icon" href="/public/assets/favicon/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/assets/favicon/apple-touch-icon.png" />
+    <link rel="manifest" href="/public/assets/favicon/site.webmanifest" />
     <title>${title} | Camagru</title>
     <link rel="stylesheet" href="/public/css/main.css" />
     <link rel="stylesheet" href="/public/css/auth.css" />
