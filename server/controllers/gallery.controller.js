@@ -138,6 +138,7 @@ const renderImageNotFoundHTML = ({ csrfToken, currentUser, currentPath }) => `
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="csrf-token" content="${escapeHtml(csrfToken)}" />
+    <link rel="icon" href="/public/favicon.ico" />
     <title>Image Not Found | Camagru</title>
     <link rel="stylesheet" href="/public/assets/fontawesome/css/all.min.css" />
     <link rel="stylesheet" href="/public/css/main.css" />
