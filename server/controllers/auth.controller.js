@@ -222,6 +222,8 @@ exports.postLogin = async (req, res) => {
 };
 
 exports.logout = (req, res) => {
+  const username = req.session.user?.username || "unknown";
+
   req.session.destroy((err) => {
     if (err)
       return res
@@ -229,7 +231,7 @@ exports.logout = (req, res) => {
         .send(renderLoginPage(req, "Could not log out", "error"));
 
     res.clearCookie("camagru.sid");
-    logger.info("User logged out");
+    logger.info(`User logged out: ${username}`);
     return res.redirect("/login?logged_out=1");
   });
 };

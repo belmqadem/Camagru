@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS sessions (
   sid    VARCHAR NOT NULL COLLATE "default" PRIMARY KEY,
   sess   JSON NOT NULL,
-  expire TIMESTAMP(6) NOT NULL
+  expire TIMESTAMPTZ(6) NOT NULL
 );
 CREATE INDEX IF NOT EXISTS IDX_sessions_expire ON sessions (expire);
 
@@ -12,11 +12,11 @@ CREATE TABLE users (
   password         TEXT NOT NULL,
   verified         BOOLEAN DEFAULT FALSE,
   verify_token     TEXT,
-  verify_expires   TIMESTAMP,
+  verify_expires   TIMESTAMPTZ,
   reset_token      TEXT,
-  reset_expires    TIMESTAMP,
+  reset_expires    TIMESTAMPTZ,
   notify_comments  BOOLEAN DEFAULT TRUE,
-  created_at       TIMESTAMP DEFAULT NOW()
+  created_at       TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE overlays (
@@ -28,7 +28,7 @@ CREATE TABLE images (
   id          SERIAL PRIMARY KEY,
   user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
   filename    TEXT NOT NULL,
-  created_at  TIMESTAMP DEFAULT NOW()
+  created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE likes (
@@ -43,7 +43,7 @@ CREATE TABLE comments (
   user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
   image_id    INTEGER REFERENCES images(id) ON DELETE CASCADE,
   content     TEXT NOT NULL,
-  created_at  TIMESTAMP DEFAULT NOW()
+  created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Seed your overlay stickers
