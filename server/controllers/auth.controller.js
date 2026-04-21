@@ -10,14 +10,18 @@ const {
   resetHTML,
 } = require("../views/auth.templates");
 const tokens = require("../core/tokens");
-const { EMAIL_REGEX, PASSWORD_REGEX, escapeHtml } = require("../utils/helpers");
+const {
+  escapeHtml,
+  normalizeEmail,
+  normalizeUsername,
+} = require("../utils/helpers");
+const {
+  EMAIL_REGEX,
+  PASSWORD_REGEX,
+  VERIFY_TOKEN_TTL_MS,
+  FORGOT_PASSWORD_MIN_RESPONSE_MS,
+} = require("../utils/constants");
 
-const VERIFY_TOKEN_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
-const FORGOT_PASSWORD_MIN_RESPONSE_MS = 300;
-const normalizeEmail = (email) =>
-  String(email || "")
-    .trim()
-    .toLowerCase();
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const getCurrentPath = (req) => `${req.baseUrl || ""}${req.path || ""}` || "/";
 
@@ -50,6 +54,13 @@ const getLoginPageMessage = (query) => {
     };
   }
 
+  if (query.email_changed === "1") {
+    return {
+      text: "Email updated. Please confirm your new email address then log in again.",
+      type: "info",
+    };
+  }
+
   return { text: "", type: "error" };
 };
 
@@ -71,7 +82,8 @@ exports.getRegister = (req, res) => {
 
 exports.postRegister = async (req, res) => {
   const { username, email, password } = req.body;
-  const normalizedUsername = String(username || "").trim();
+
+  const normalizedUsername = normalizeUsername(username);
   const normalizedEmail = normalizeEmail(email);
 
   if (!normalizedUsername || !normalizedEmail || !password)
@@ -120,6 +132,10 @@ exports.postRegister = async (req, res) => {
     verifyExpires,
   });
 
+  logger.info(
+    `New user registered: ${normalizedUsername} (${normalizedEmail}). Verification token expires at ${verifyExpires.toISOString()}`,
+  );
+
   const link = `${process.env.APP_URL}/verify?token=${rawToken}`;
   await sendMail(
     normalizedEmail,
@@ -130,6 +146,8 @@ exports.postRegister = async (req, res) => {
     <a href="${link}">Confirm my account</a>
   `,
   );
+
+  logger.info(`Sent verification email to ${normalizedEmail}`);
 
   res.redirect("/login?registered=1");
 };
@@ -160,7 +178,7 @@ exports.getLogin = (req, res) => {
 
 exports.postLogin = async (req, res) => {
   const { username, password } = req.body;
-  const normalizedUsername = String(username || "").trim();
+  const normalizedUsername = normalizeUsername(username);
 
   if (!normalizedUsername || !password)
     return res
@@ -186,6 +204,7 @@ exports.postLogin = async (req, res) => {
     req.session.regenerate((err) => {
       if (err) {
         reject(err);
+        logger.error("Session regeneration failed during login", err);
         return;
       }
 
@@ -197,6 +216,8 @@ exports.postLogin = async (req, res) => {
   req.session.user = { id: user.id, username: user.username };
   req.session.csrfToken = undefined; // force new CSRF token
 
+  logger.info(`User logged in: ${user.username} (${user.email})`);
+
   return res.redirect("/gallery");
 };
 
@@ -206,7 +227,9 @@ exports.logout = (req, res) => {
       return res
         .status(500)
         .send(renderLoginPage(req, "Could not log out", "error"));
+
     res.clearCookie("camagru.sid");
+    logger.info("User logged out");
     return res.redirect("/login?logged_out=1");
   });
 };
@@ -216,12 +239,15 @@ exports.getForgot = (req, res) => {
 };
 
 exports.postForgot = async (req, res) => {
-  const startedAt = Date.now();
+  const startedAt = Date.now(); // for timing attack mitigation
+
   const { email } = req.body;
   const normalizedEmail = normalizeEmail(email);
 
   if (!EMAIL_REGEX.test(normalizedEmail))
     return res.status(400).send(renderForgotPage(req, "Invalid email address"));
+
+  logger.info(`Password reset requested for ${normalizedEmail}`);
 
   const user = await userModel.findByEmail(normalizedEmail);
 
@@ -236,15 +262,17 @@ exports.postForgot = async (req, res) => {
       normalizedEmail,
       "Reset your Camagru password",
       `
-    <h2>Password Reset</h2>
-    <p>Click the link below (valid for 1 hour):</p>
-    <a href="${link}">Reset my password</a>
-  `,
+    	<h2>Password Reset</h2>
+    	<p>Click the link below (valid for 1 hour):</p>
+    	<a href="${link}">Reset my password</a>
+  	  `,
     ).catch((error) => {
       logger.error("Failed to send reset password email", error);
     });
+    logger.info(`Sent password reset email to ${normalizedEmail}`);
   }
 
+  // Mitigate timing attacks by ensuring this endpoint takes a consistent amount of time regardless of whether the email exists or not
   const elapsedMs = Date.now() - startedAt;
   if (elapsedMs < FORGOT_PASSWORD_MIN_RESPONSE_MS) {
     await wait(FORGOT_PASSWORD_MIN_RESPONSE_MS - elapsedMs);
@@ -303,6 +331,8 @@ exports.postReset = async (req, res) => {
 
   const passwordHash = await bcrypt.hash(password, 12);
   await userModel.updatePassword(user.id, passwordHash);
+
+  logger.info(`User reset password: ${user.username} (${user.email})`);
 
   res.redirect("/login?reset=1");
 };

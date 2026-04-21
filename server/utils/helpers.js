@@ -1,6 +1,3 @@
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
-
 const escapeHtml = (value) =>
   String(value)
     .replace(/&/g, "&amp;")
@@ -33,10 +30,25 @@ const isAjaxRequest = (req) => {
   );
 };
 
+const normalizeEmail = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase();
+
+const normalizeUsername = (value) => String(value || "").trim();
+
+const normalizePath = (value) => {
+  const raw = String(value || "/")
+    .split("?")[0]
+    .replace(/\/+$/, "");
+  return raw || "/";
+};
+
 module.exports = {
-  EMAIL_REGEX,
-  PASSWORD_REGEX,
   escapeHtml,
   formatDate,
   isAjaxRequest,
+  normalizeEmail,
+  normalizeUsername,
+  normalizePath,
 };

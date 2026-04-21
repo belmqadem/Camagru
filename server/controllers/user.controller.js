@@ -5,28 +5,24 @@ const userModel = require("../models/user.model");
 const { generate } = require("../core/csrf");
 const { sendMail } = require("../core/mailer");
 const tokens = require("../core/tokens");
-const { EMAIL_REGEX, PASSWORD_REGEX, escapeHtml } = require("../utils/helpers");
+const {
+  escapeHtml,
+  normalizeEmail,
+  normalizeUsername,
+  normalizePath,
+} = require("../utils/helpers");
+const {
+  EMAIL_REGEX,
+  PASSWORD_REGEX,
+  VERIFY_TOKEN_TTL_MS,
+} = require("../utils/constants");
 const renderNavAuth = require("../utils/renderNavAuth");
+const logger = require("../core/logger");
 
 const profileTemplate = fs.readFileSync(
   path.join(__dirname, "../views/profile.html"),
   "utf8",
 );
-
-const VERIFY_TOKEN_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
-
-const normalizeUsername = (value) => String(value || "").trim();
-const normalizeEmail = (value) =>
-  String(value || "")
-    .trim()
-    .toLowerCase();
-
-const normalizePath = (value) => {
-  const raw = String(value || "/")
-    .split("?")[0]
-    .replace(/\/+$/, "");
-  return raw || "/";
-};
 
 const getStatusMessage = (query = {}) => {
   if (query.info === "success") {
@@ -63,7 +59,7 @@ const getStatusMessage = (query = {}) => {
 
   const errorMessages = {
     user_not_found: "User not found.",
-    info_required: "Username and email are required.",
+    info_required: "All fields are required.",
     email_invalid: "Please enter a valid email address.",
     username_taken: "Username is already taken.",
     email_taken: "Email is already in use.",
@@ -71,9 +67,11 @@ const getStatusMessage = (query = {}) => {
     password_weak:
       "New password must be at least 8 characters with 1 uppercase letter and 1 number.",
     password_mismatch: "New password and confirmation do not match.",
-	password_same: "New password must be different from the current password.",
+    password_same: "New password must be different from the current password.",
     email_send_failed:
       "Could not send verification email to the new address. Profile was not updated.",
+    verify_send_failed:
+      "Profile updated but confirmation email could not be sent. Please contact support.",
   };
 
   if (query.error && errorMessages[query.error]) {
@@ -81,7 +79,7 @@ const getStatusMessage = (query = {}) => {
       "current_password_invalid",
       "password_weak",
       "password_mismatch",
-	  "password_same",
+      "password_same",
     ]);
 
     return {
@@ -184,14 +182,24 @@ exports.postProfileInfo = async (req, res) => {
     return res.redirect("/user/profile?error=email_taken");
   }
 
-  const currentEmail = normalizeEmail(user.email);
-  const isEmailChanged = currentEmail !== email;
+  const isEmailChanged = normalizeEmail(user.email) !== email;
 
   if (isEmailChanged) {
     const rawToken = tokens.generate();
     const hashedToken = tokens.hash(rawToken);
     const verifyExpires = new Date(Date.now() + VERIFY_TOKEN_TTL_MS);
     const verifyLink = `${process.env.APP_URL}/verify?token=${rawToken}`;
+
+    await userModel.updateProfile(user.id, {
+      username,
+      email,
+      verifyToken: hashedToken,
+      verifyExpires,
+    });
+
+    logger.info(
+      `User changed email: ${user.username} → ${email} (pending verification)`,
+    );
 
     try {
       await sendMail(
@@ -201,25 +209,24 @@ exports.postProfileInfo = async (req, res) => {
         <h2>Confirm your new email address</h2>
         <p>Hello ${escapeHtml(username)}, click the link below to confirm your new email:</p>
         <a href="${verifyLink}">Confirm my email</a>
-      `,
+        `,
       );
     } catch (_error) {
-      return res.redirect("/user/profile?error=email_send_failed");
+      logger.error(`Failed to send verification email to ${email}`);
+      await new Promise((resolve, reject) =>
+        req.session.destroy((err) => (err ? reject(err) : resolve())),
+      );
+      res.clearCookie("camagru.sid");
+      return res.redirect("/login?email_changed=1");
     }
 
-    await userModel.updateProfile(user.id, {
-      username,
-      email,
-      verifyToken: hashedToken,
-      verifyExpires,
-    });
+    // Force logout so the user verify the new email
+    await new Promise((resolve, reject) =>
+      req.session.destroy((err) => (err ? reject(err) : resolve())),
+    );
 
-    req.session.user = {
-      id: req.session.userId,
-      username,
-    };
-
-    return res.redirect("/user/profile?info=verify_sent");
+    res.clearCookie("camagru.sid");
+    return res.redirect("/login?email_changed=1");
   }
 
   await userModel.updateProfile(user.id, { username, email });
@@ -228,6 +235,8 @@ exports.postProfileInfo = async (req, res) => {
     id: req.session.userId,
     username,
   };
+
+  logger.info(`User updated profile: ${username} (${email})`);
 
   return res.redirect("/user/profile?info=success");
 };
@@ -242,28 +251,29 @@ exports.postProfilePassword = async (req, res) => {
   const newPassword = String(req.body.newPassword || "");
   const confirmPassword = String(req.body.confirmPassword || "");
 
+  if (!newPassword || !currentPassword || !confirmPassword)
+    return res.redirect("/user/profile?error=info_required");
+
+  if (currentPassword === newPassword)
+    return res.redirect("/user/profile?error=password_same");
+
+  if (!PASSWORD_REGEX.test(newPassword))
+    return res.redirect("/user/profile?error=password_weak");
+
+  if (newPassword !== confirmPassword)
+    return res.redirect("/user/profile?error=password_mismatch");
+
   const isCurrentPasswordValid = await bcrypt.compare(
     currentPassword,
     user.password,
   );
-  if (!isCurrentPasswordValid) {
+  if (!isCurrentPasswordValid)
     return res.redirect("/user/profile?error=current_password_invalid");
-  }
-
-  if (!PASSWORD_REGEX.test(newPassword)) {
-    return res.redirect("/user/profile?error=password_weak");
-  }
-
-  if (newPassword !== confirmPassword) {
-    return res.redirect("/user/profile?error=password_mismatch");
-  }
-
-  if (currentPassword === newPassword) {
-	return res.redirect("/user/profile?error=password_same");
-  }
 
   const passwordHash = await bcrypt.hash(newPassword, 12);
   await userModel.updatePassword(user.id, passwordHash);
+
+  logger.info(`User updated password: ${user.username} (${user.email})`);
 
   return res.redirect("/user/profile?password=success");
 };
@@ -276,6 +286,10 @@ exports.postProfilePreferences = async (req, res) => {
 
   const notifyComments = req.body.notify_comments === "on";
   await userModel.updatePreferences(user.id, { notifyComments });
+
+  logger.info(
+    `User updated preferences: ${user.username}, notify_comments=${notifyComments}`,
+  );
 
   return res.redirect("/user/profile?preferences=success");
 };

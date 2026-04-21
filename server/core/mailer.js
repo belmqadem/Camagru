@@ -17,7 +17,7 @@ transporter.verify().catch((err) => {
 const sendMail = async (to, subject, html) => {
   try {
     await transporter.sendMail({
-      from: "camagru@app.com",
+      from: "camagru@1337.ma",
       to,
       subject,
       html,
