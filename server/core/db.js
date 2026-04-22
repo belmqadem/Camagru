@@ -31,7 +31,7 @@ const connectWithRetry = async (retries = 5, delay = 2000) => {
     try {
       const client = await pool.connect();
       client.release();
-      logger.info("Connected to PostgreSQL");
+      logger.info("Connected to PostgreSQL successfully");
       return;
     } catch (err) {
       lastError = err;

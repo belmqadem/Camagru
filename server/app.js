@@ -41,6 +41,7 @@ const requireAuth = require("./middlewares/auth.middleware");
 
 const app = express();
 
+// Trust nginx in prod for correct client IP and secure cookies
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1);
 }
@@ -117,9 +118,9 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true, // XSS protection
-      secure: process.env.NODE_ENV === "production", // HTTPS only in production
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax", // CSRF protection
-      maxAge: 1000 * 60 * 60 * 24, // 1 day
+      maxAge: 1000 * 60 * 60 * 24,
     },
   }),
 );

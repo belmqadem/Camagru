@@ -38,7 +38,7 @@ Camagru is a full-stack photo editing web application where users can capture we
 
 ```bash
 git clone <repo>
-cd camagru
+cd Camagru
 cp .env.example .env
 # fill in .env values
 docker-compose up --build
