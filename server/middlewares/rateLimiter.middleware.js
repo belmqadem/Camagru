@@ -32,14 +32,40 @@ const renderRateLimitedPage = (req) => {
   return loginHTML(csrf, RATE_LIMIT_MESSAGE, "error", currentPath);
 };
 
-const authLimiter = rateLimit({
+const createAuthLimiter = ({ windowMs, limit }) =>
+  rateLimit({
+    windowMs,
+    limit,
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req, res) => {
+      res.status(429).send(renderRateLimitedPage(req));
+    },
+  });
+
+const loginLimiter = createAuthLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: (req, res) => {
-    res.status(429).send(renderRateLimitedPage(req));
-  },
+  limit: 20,
 });
 
-module.exports = authLimiter;
+const registerLimiter = createAuthLimiter({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+});
+
+const forgotLimiter = createAuthLimiter({
+  windowMs: 60 * 60 * 1000,
+  limit: 8,
+});
+
+const resetLimiter = createAuthLimiter({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+});
+
+module.exports = {
+  loginLimiter,
+  registerLimiter,
+  forgotLimiter,
+  resetLimiter,
+};

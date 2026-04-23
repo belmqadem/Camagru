@@ -2,12 +2,17 @@ const router = require("express").Router();
 const auth = require("../controllers/auth.controller");
 const csrf = require("../core/csrf");
 const withErrorHandling = require("../utils/withErrorHandling");
-const authLimiter = require("../middlewares/rateLimiter.middleware");
+const {
+  loginLimiter,
+  registerLimiter,
+  forgotLimiter,
+  resetLimiter,
+} = require("../middlewares/rateLimiter.middleware");
 
 router.get("/register", withErrorHandling(auth.getRegister));
 router.post(
   "/register",
-  authLimiter,
+  registerLimiter,
   csrf.verify,
   withErrorHandling(auth.postRegister),
 );
@@ -15,7 +20,7 @@ router.post(
 router.get("/login", withErrorHandling(auth.getLogin));
 router.post(
   "/login",
-  authLimiter,
+  loginLimiter,
   csrf.verify,
   withErrorHandling(auth.postLogin),
 );
@@ -26,7 +31,7 @@ router.get("/verify", withErrorHandling(auth.getVerify));
 router.get("/forgot-password", withErrorHandling(auth.getForgot));
 router.post(
   "/forgot-password",
-  authLimiter,
+  forgotLimiter,
   csrf.verify,
   withErrorHandling(auth.postForgot),
 );
@@ -34,7 +39,7 @@ router.post(
 router.get("/reset-password", withErrorHandling(auth.getReset));
 router.post(
   "/reset-password",
-  authLimiter,
+  resetLimiter,
   csrf.verify,
   withErrorHandling(auth.postReset),
 );
